@@ -1,0 +1,20 @@
+# Visual Paintor
+
+* Preparing data ß
+	* convert files to csv files (space delimted)
+		* numpy? 
+	* convert z-score to p-value 
+		* statistics library or numpy? 
+* Graphs
+	* covarriance chart (what variable/values to use?)
+		* rotating the chart 
+	* scatterplot
+		* -log10
+	* horizontal bar chart
+		* ?
+* All in one figure...?
+
+4/1 Todo:
+- import data
+- convert to p-value
+- start scatterplot
