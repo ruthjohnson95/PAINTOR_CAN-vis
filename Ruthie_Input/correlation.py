@@ -11,8 +11,14 @@ sns.set(style="white")
 filename = 'Enrich.DHS.6.ld'
 ld = pd.read_csv(filename, header=None, delimiter=r"\s+")
 
+###########
+# R-squared values
+ld_squared = ld**2
+corr = ld_squared.corr()
+###########
+
 #create correlation matrix
-corr = ld.corr()
+#corr = ld.corr()
 
 # Generate a mask for the upper triangle
 mask = np.zeros_like(corr, dtype=np.bool)
@@ -32,7 +38,7 @@ sns.heatmap(corr, mask=mask, cmap=cmap, vmax=.3,
 plt.savefig('fig.png', bbox_inches='tight')
 im1 = Image.open("fig.png")
 im2 = im1.rotate(45, expand=True)
-im2 = im2.crop((0, 0, 10, 10)
-#im2.show()
-im2.save("fig_rotate.png")
+#im2 = im2.crop(0, 0, 10, 10)
+im2.show()
+#im2.save("fig_rotate.png")
 #plt.show()
