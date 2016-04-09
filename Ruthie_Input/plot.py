@@ -7,9 +7,9 @@ directly on a new figure.
 """
 import csv 
 import numpy as np 
+import math 
 import seaborn as sns 
 import matplotlib.pyplot as plt
-import math 
 from matplotlib import pyplot
 import matplotlib as mpl
 from scipy.stats import norm
