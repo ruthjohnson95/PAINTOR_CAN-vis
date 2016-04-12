@@ -18,3 +18,10 @@
 - import data
 - convert to p-value
 - start scatterplot
+
+4/5 Todo:
+- label axes
+- set range for axes
+- make plot for probabilities
+- push everything onto git 
+- start covariance matrix 

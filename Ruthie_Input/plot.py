@@ -10,7 +10,7 @@ import numpy as np
 import math 
 import seaborn as sns 
 import matplotlib.pyplot as plt
-from matplotlib import pyplot
+#from matplotlib import pyplot
 import matplotlib as mpl
 from scipy.stats import norm
 
@@ -76,7 +76,7 @@ for a in annotations:
 print colors 
 
 # Make a figure and axes with dimensions as desired.
-fig = pyplot.figure(figsize=(8, 3))
+fig = plt.figure(figsize=(8, 3))
 
 ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
 
@@ -111,10 +111,11 @@ cb2.set_label('Colorbar Test')
 
 
 # Two subplots, the axes array is 1-d
-f, axarr = plt.subplots(2, sharex=True)
+f, axarr = plt.subplots(3, sharex=True)
 axarr[0].scatter(pos_array, prob_array)
 axarr[0].set_title('Sharing X axis')
 axarr[1].scatter(pos_array, pvalue)
+
 #axarr[2].cb2
 '''
 plt.xlim(0,315)
