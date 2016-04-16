@@ -55,13 +55,7 @@ plt.close('all')
 
 #read in file 
 filename = 'Enrich.DHS.38.annotations'
-csv_file = csv.reader( open(filename, 'rb'),  delimiter = ' ' )
-#extract header line
-file_header = csv_file.next() 
-data = [ row[:] for row in csv_file ] #gets last row 
-data_array = np.array(data, dtype='int_' )  
 
-annotations = data_array[:,1]
 
 
 #annotations = [0,0,1,0,1,1,1,0,1]

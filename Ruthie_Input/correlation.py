@@ -36,11 +36,10 @@ ld_plot = sns.heatmap(corr, mask=mask, cmap=cmap, vmax=.3,
 	           square=True, xticklabels=5, yticklabels=5,
 	           linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
 
-plt.savefig('fig.png', bbox_inches='tight')
-plt.savefig()
+plt.savefig('fig.svg', bbox_inches='tight')
 #im1 = Image.open("fig.png")
-im1 = plt
-im2 = im1.rotate(45, expand=True)
+#im1 = plt
+#im2 = im1.rotate(45, expand=True)
 #im2 = im2.crop(0, 0, 10, 10)
 #im2.show()
 #im2.save("fig_rotate.png")

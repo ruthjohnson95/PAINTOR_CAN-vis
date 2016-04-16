@@ -57,8 +57,9 @@ cb2 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
                                 spacing='proportional',
                                 orientation='horizontal')
 cb2.set_label('Colorbar Test')
-plt.savefig('color_bar.png', bbox_inches='tight')
-pyplot.show()
+#plt.savefig('color_bar.png', bbox_inches='tight')
+pyplot.show(cb2)
+
 
 
 
