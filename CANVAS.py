@@ -28,39 +28,38 @@ def Read_Input(locus_fname, ld_fname, annotation_fname):
 def Plot_Position_Value(position, zscore, pos_prob ):
 
     """Function that plots z-scores, posterior probabilites, other features """
-    fig = plt.figure(figsize=(6, 4))
-    sub1 = plt.subplot(2, 2, 1)
+    fig = plt.figure(figsize=(12, 6.25))
+    sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
     pvalue = Zscore_to_Pvalue(zscore)
     sub1.scatter(position, pvalue)
-    sub2 = fig.add_subplot(223)
+    sub2 = fig.add_subplot(2, 1, 2, axisbg='white')
     sub2.scatter(position, pos_prob)
     value_plots = fig
     return value_plots #returns subplots with both graphs
 
 def Plot_Heatmap(correlation_matrix):
     """Function that plots heatmap of LD matrix"""
-    fig = plt.figure(figsize=(3,2))
+    fig = plt.figure(figsize=(12, 6.25))
     sns.set(style="white")
     correlation = correlation_matrix.corr()
     mask = np.zeros_like(correlation, dtype=np.bool)
     mask[np.triu_indices_from(mask)] = True
     cmap = sns.diverging_palette(220, 10, as_cmap=True)
-    sns.heatmap(correlation, mask=mask, cmap=cmap, vmax=.3,
-                          square=True, xticklabels=5, yticklabels=5,
-                          linewidths=.5, cbar_kws={"shrink": .5})
+    sns.heatmap(correlation, mask=mask, cmap=cmap, vmax=.3 ,square=True, xticklabels=5,
+                yticklabels=5, linewidths=.5, cbar_kws ={"shrink": .5})
     heatmap = fig
     # Rotate and Crop figure to be added later
     return heatmap
 
 def Plot_Annotations(annotation_vectors, annotation_names):
     """Plot the annotations with labels"""
-    fig = plt.figure(figsize=(3, 2))
     colors = []
     for a in annotation_vectors:
         if a == 0:
             colors.append('r')
         else:
             colors.append('b')
+    fig = plt.figure(figsize=(12, 2))
     ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
     cmap = mpl.colors.ListedColormap(colors)
     cmap.set_over('0.25')
@@ -68,30 +67,30 @@ def Plot_Annotations(annotation_vectors, annotation_names):
     N = len(annotation_vectors)
     bounds = range(1, N+1)
     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-    mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+    annotation_plot = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
                                     norm=norm,
                                     spacing='proportional',
                                     orientation='horizontal')
-    fig.set_label('Annotations')
-    annotation_plot = fig
-
+    annotation_plot.set_label('Annotations')
+    annotation_plot = plt
     return annotation_plot
 
 def Assemble_Figure(value_plots, heatmap, annotation_plot):
     """Assemble everything together"""
     value_plots.savefig('value_plots.svg', format='svg', dpi=1200)
     heatmap.savefig('heatmap.svg', format='svg', dpi=1200)
-    annotation_plot.figure.savefig('annotation_plot.svg', format='svg', dpi=1200)
+    annotation_plot.savefig('annotation_plot.svg', format='svg', dpi=1200)
 
-    fig = sg.SVGFigure("16cm", "6.5cm")
+    fig = sg.SVGFigure("13in", "19in")
     value_plots = sg.fromfile('value_plots.svg')
-    heatmap = sg.fromfile('heatmap.svg')
+    heatmap  = sg.fromfile('heatmap.svg')
     annotation_plot = sg.fromfile('annotation_plot.svg')
 
     plot1 = value_plots.getroot()
     plot2 = heatmap.getroot()
     plot3 = annotation_plot.getroot()
-    plot2.moveto(280, 0, scale=0.5)
+    plot2.moveto(0, 450, scale=1.2)
+    plot3.moveto(0, 950, scale=.8)
 
     fig.append([plot1, plot2, plot3])
     fig.save("fig_final.svg")
@@ -142,7 +141,6 @@ def main():
     annotation_plot = Plot_Annotations(annotation, annotation_name)
 
     Assemble_Figure(value_plots, heatmap, annotation_plot)
-
 
 
 
