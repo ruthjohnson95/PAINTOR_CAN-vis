@@ -9,7 +9,7 @@ from scipy.stats import norm
 import math
 from optparse import OptionParser
 import svgutils.transform as sg
-from PIL import Image
+#import cairosvg
 import sys
 
 def Read_Input(locus_fname, ld_fname, annotation_fname):
@@ -30,10 +30,16 @@ def Plot_Position_Value(position, zscore, pos_prob ):
 
     """Function that plots z-scores, posterior probabilites, other features """
     fig = plt.figure(figsize=(12, 6.25))
-    sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
+    sub1 = fig.add_subplot(2, 1, 1)
+    plt.xlim(np.amin(position), np.amax(position))
+    plt.ylabel('-log10(pvalue)')
     pvalue = Zscore_to_Pvalue(zscore)
     sub1.scatter(position, pvalue)
-    sub2 = fig.add_subplot(2, 1, 2, axisbg='white')
+    sub2 = fig.add_subplot(2, 1, 2)
+    plt.xlim(np.amin(position), np.amax(position))
+    plt.gca().set_ylim(bottom=0)
+    plt.ylabel('Posterior probabilities')
+    plt.xlabel('Location')
     sub2.scatter(position, pos_prob)
     value_plots = fig
     return value_plots #returns subplots with both graphs
@@ -56,10 +62,10 @@ def Plot_Annotations(annotation_vectors, annotation_names):
     colors = []
     for a in annotation_vectors:
         if a == 0:
-            colors.append('r')
+            colors.append('#DADFE1')
         else:
-            colors.append('b')
-    fig = plt.figure(figsize=(12, 1.5))
+            colors.append('#4B77BE')
+    fig = plt.figure(figsize=(12, 1.0))
     ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
     cmap = mpl.colors.ListedColormap(colors)
     cmap.set_over('0.25')
@@ -89,12 +95,13 @@ def Assemble_Figure(value_plots, heatmap, annotation_plot):
     plot1 = value_plots.getroot()
     plot2 = heatmap.getroot()
     plot3 = annotation_plot.getroot()
-    plot2.rotate(-45, 600, 600)
-    plot2.moveto(300, 100, scale=1.3)
+    plot2.rotate(-45, 0, 0) #600, 600
+    plot2.moveto(0, 0, scale=1.3)
     plot3.moveto(100, 750, scale=.8)
 
     fig.append([plot2, plot1, plot3])
     fig.save("fig_final.svg")
+   # cairosvg.svg2pdf(url='fig_final.svg', write_to='fig_final.pdf')
 
 
 def Zscore_to_Pvalue(zscore):
@@ -123,6 +130,7 @@ def main():
     annotation_name = options.annotation_name
     ld_name = options.ld_name
     plot_annotations = options.plot_annotations
+   # width = options.width
     usage = \
     """ Need the following flags specified (*)
         Usage:
