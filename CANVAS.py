@@ -9,6 +9,7 @@ from scipy.stats import norm
 import math
 from optparse import OptionParser
 import svgutils.transform as sg
+from PIL import Image
 import sys
 
 def Read_Input(locus_fname, ld_fname, annotation_fname):
@@ -39,16 +40,15 @@ def Plot_Position_Value(position, zscore, pos_prob ):
 
 def Plot_Heatmap(correlation_matrix):
     """Function that plots heatmap of LD matrix"""
-    fig = plt.figure(figsize=(12, 6.25))
+    fig = plt.figure(figsize=(6.25, 6.25))
     sns.set(style="white")
     correlation = correlation_matrix.corr()
     mask = np.zeros_like(correlation, dtype=np.bool)
     mask[np.triu_indices_from(mask)] = True
-    cmap = sns.diverging_palette(220, 10, as_cmap=True)
-    sns.heatmap(correlation, mask=mask, cmap=cmap, vmax=.3 ,square=True, xticklabels=5,
-                yticklabels=5, linewidths=.5, cbar_kws ={"shrink": .5})
+    cmap = sns.diverging_palette(255, 133, as_cmap=True)
+    sns.heatmap(correlation, mask=mask, cmap=cmap, vmax=.3, square=True,
+                linewidths=.5, cbar=False, xticklabels=False, yticklabels=False, ax=None)
     heatmap = fig
-    # Rotate and Crop figure to be added later
     return heatmap
 
 def Plot_Annotations(annotation_vectors, annotation_names):
@@ -59,7 +59,7 @@ def Plot_Annotations(annotation_vectors, annotation_names):
             colors.append('r')
         else:
             colors.append('b')
-    fig = plt.figure(figsize=(12, 2))
+    fig = plt.figure(figsize=(12, 1.5))
     ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
     cmap = mpl.colors.ListedColormap(colors)
     cmap.set_over('0.25')
@@ -83,16 +83,17 @@ def Assemble_Figure(value_plots, heatmap, annotation_plot):
 
     fig = sg.SVGFigure("13in", "19in")
     value_plots = sg.fromfile('value_plots.svg')
-    heatmap  = sg.fromfile('heatmap.svg')
+    heatmap = sg.fromfile('heatmap.svg')
     annotation_plot = sg.fromfile('annotation_plot.svg')
 
     plot1 = value_plots.getroot()
     plot2 = heatmap.getroot()
     plot3 = annotation_plot.getroot()
-    plot2.moveto(0, 450, scale=1.2)
-    plot3.moveto(0, 950, scale=.8)
+    plot2.rotate(-45, 600, 600)
+    plot2.moveto(300, 100, scale=1.3)
+    plot3.moveto(100, 750, scale=.8)
 
-    fig.append([plot1, plot2, plot3])
+    fig.append([plot2, plot1, plot3])
     fig.save("fig_final.svg")
 
 
@@ -129,6 +130,9 @@ def main():
         --ld_name [r] specify the ld_matrix file name *
         --annotation_name [-a]  specify annotation file name *
         --plot_annotations [-p] specify which annotations to plot [default: None]
+        --hue_1 [-h1]
+        --hue_2 [-h2]
+        --width [-w]
         """
 
     # check if required flags are presnt
