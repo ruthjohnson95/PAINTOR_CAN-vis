@@ -12,6 +12,7 @@ import svgutils.transform as sg
 #import cairosvg
 import sys
 
+
 def Read_Input(locus_fname, ld_fname, annotation_fname):
     """Function that reads in all your data """
     csv_file = csv.reader(open(locus_fname, 'rb'), delimiter=' ')
@@ -30,12 +31,12 @@ def Plot_Position_Value(position, zscore, pos_prob ):
 
     """Function that plots z-scores, posterior probabilites, other features """
     fig = plt.figure(figsize=(12, 6.25))
-    sub1 = fig.add_subplot(2, 1, 1)
+    sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position))
     plt.ylabel('-log10(pvalue)')
     pvalue = Zscore_to_Pvalue(zscore)
     sub1.scatter(position, pvalue)
-    sub2 = fig.add_subplot(2, 1, 2)
+    sub2 = fig.add_subplot(2, 1, 2, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position))
     plt.gca().set_ylim(bottom=0)
     plt.ylabel('Posterior probabilities')
@@ -44,14 +45,16 @@ def Plot_Position_Value(position, zscore, pos_prob ):
     value_plots = fig
     return value_plots #returns subplots with both graphs
 
-def Plot_Heatmap(correlation_matrix):
+def Plot_Heatmap(correlation_matrix, hue1, hue2):
     """Function that plots heatmap of LD matrix"""
     fig = plt.figure(figsize=(6.25, 6.25))
     sns.set(style="white")
     correlation = correlation_matrix.corr()
     mask = np.zeros_like(correlation, dtype=np.bool)
     mask[np.triu_indices_from(mask)] = True
-    cmap = sns.diverging_palette(255, 133, as_cmap=True)
+    h1 = int(hue1)
+    h2 = int(hue2)
+    cmap = sns.diverging_palette(h1, h2, as_cmap=True)
     sns.heatmap(correlation, mask=mask, cmap=cmap, vmax=.3, square=True,
                 linewidths=.5, cbar=False, xticklabels=False, yticklabels=False, ax=None)
     heatmap = fig
@@ -73,20 +76,41 @@ def Plot_Annotations(annotation_vectors, annotation_names):
     N = len(annotation_vectors)
     bounds = range(1, N+1)
     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-    annotation_plot = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+    annotation_plot1 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
                                     norm=norm,
                                     spacing='proportional',
                                     orientation='horizontal')
-    annotation_plot.set_label('Annotations')
-    annotation_plot = plt
-    return annotation_plot
+    annotation_plot1.set_label('Annotations')
+    annotation_plot1 = plt
+
+    colors = []
+    for a in annotation_vectors:
+        if a == 0:
+            colors.append('#DADFE1')
+        else:
+            colors.append('#4B77BE')
+    fig = plt.figure(figsize=(12, 1.0))
+    ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
+    cmap = mpl.colors.ListedColormap(colors)
+    cmap.set_over('0.25')
+    cmap.set_under('0.75')
+    N = len(annotation_vectors)
+    bounds = range(1, N + 1)
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    annotation_plot2 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+                                                norm=norm,
+                                                spacing='proportional',
+                                                orientation='horizontal')
+    annotation_plo2.set_label('Annotations')
+    annotation_plot2 = plt
+
+    return (annotation_plot1, annotation_plot2)
 
 def Assemble_Figure(value_plots, heatmap, annotation_plot):
     """Assemble everything together"""
     value_plots.savefig('value_plots.svg', format='svg', dpi=1200)
     heatmap.savefig('heatmap.svg', format='svg', dpi=1200)
     annotation_plot.savefig('annotation_plot.svg', format='svg', dpi=1200)
-
     fig = sg.SVGFigure("13in", "19in")
     value_plots = sg.fromfile('value_plots.svg')
     heatmap = sg.fromfile('heatmap.svg')
@@ -95,13 +119,13 @@ def Assemble_Figure(value_plots, heatmap, annotation_plot):
     plot1 = value_plots.getroot()
     plot2 = heatmap.getroot()
     plot3 = annotation_plot.getroot()
-    plot2.rotate(-45, 0, 0) #600, 600
-    plot2.moveto(0, 0, scale=1.3)
-    plot3.moveto(100, 750, scale=.8)
+    plot2.rotate(-45, 600, 600)
+    plot2.moveto(250, 100, scale=1.375)
+    plot3.moveto(60, 825, scale=.9)
 
     fig.append([plot2, plot1, plot3])
     fig.save("fig_final.svg")
-   # cairosvg.svg2pdf(url='fig_final.svg', write_to='fig_final.pdf')
+    #cairosvg.svg2pdf(url='fig_final.svg', write_to='fig_final.pdf')
 
 
 def Zscore_to_Pvalue(zscore):
@@ -121,6 +145,8 @@ def main():
     parser.add_option("-a", "--annotation_name", dest="annotation_name")
     parser.add_option("-r", "--ld_name", dest="ld_name")
     parser.add_option("-p", "--plot_annotations", dest="plot_annotations")
+    parser.add_option("--h1", "--hue1", dest="hue1")
+    parser.add_option("--h2", "--hue2", dest="hue2")
     # add other optinos to parse
 
     # extract options
@@ -130,7 +156,8 @@ def main():
     annotation_name = options.annotation_name
     ld_name = options.ld_name
     plot_annotations = options.plot_annotations
-   # width = options.width
+    hue1 = options.hue1
+    hue2 = options.hue2
     usage = \
     """ Need the following flags specified (*)
         Usage:
@@ -138,9 +165,8 @@ def main():
         --ld_name [r] specify the ld_matrix file name *
         --annotation_name [-a]  specify annotation file name *
         --plot_annotations [-p] specify which annotations to plot [default: None]
-        --hue_1 [-h1]
-        --hue_2 [-h2]
-        --width [-w]
+        --hue1 [-h1]
+        --hue2 [-h2]
         """
 
     # check if required flags are presnt
@@ -149,7 +175,7 @@ def main():
 
     [locus, ld, annotation] = Read_Input(locus_name, ld_name, annotation_name)
     value_plots = Plot_Position_Value(locus[:, 0], locus[:, 1],locus[:, 2])
-    heatmap = Plot_Heatmap(ld)
+    heatmap = Plot_Heatmap(ld, hue1, hue2)
     annotation_plot = Plot_Annotations(annotation, annotation_name)
 
     Assemble_Figure(value_plots, heatmap, annotation_plot)
