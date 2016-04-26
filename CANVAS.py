@@ -53,9 +53,10 @@ def Read_Input(locus_fname, ld_fname, annotation_fname):
         annotation.append(annotation_array)
     return [locus, ld, annotation]
 
-def Plot_Position_Value(position, zscore, pos_prob ):
+def Plot_Position_Value(position, zscore, pos_prob):
 
     """Function that plots z-scores, posterior probabilites, other features """
+    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .9)
     fig = plt.figure(figsize=(12, 6.25))
     sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position))
@@ -68,8 +69,31 @@ def Plot_Position_Value(position, zscore, pos_prob ):
     plt.ylabel('Posterior probabilities')
     plt.xlabel('Location')
     sub2.scatter(position, pos_prob, color='#2980b9')
+    #add credible set
+    sub2.scatter(credible_loc, credible_prob, color = '#D91E18', marker='*')
     value_plots = fig
     return value_plots #returns subplots with both graphs
+
+def Credible_Set(position, pos_prob, threshold):
+    total = sum(pos_prob)
+    bounds = threshold*total
+    #make into tuples
+    tuple_vec = []
+    for i in range(0, len(position)):
+        tup = (position[i], pos_prob[i])
+        tuple_vec.append(tup)
+    #order tuple from largest to smallest
+    tuple_vec = sorted(tuple_vec, key=lambda x: x[1], reverse=True)
+    credible_set_value = []
+    credible_set_loc = []
+    total = 0
+    for tup in tuple_vec:
+        total += tup[1]
+        credible_set_loc.append(tup[0])
+        credible_set_value.append(tup[1])
+        if total > bounds:
+            break
+    return credible_set_loc, credible_set_value
 
 def Plot_Heatmap(correlation_matrix, hue1, hue2):
     """Function that plots heatmap of LD matrix"""
@@ -125,7 +149,9 @@ def Assemble_Figure(value_plots, heatmap, annotation_plot):
     plot1 = value_plots.getroot()
     plot2 = heatmap.getroot()
     y_scale = 50*(len(annotation_plot))
-    plot2.moveto(-10, 600 + y_scale, scale=1.425)
+    if len(annotation_plot) == 1:
+        y_scale = 0
+    plot2.moveto(-10, 550 + y_scale, scale=1.425)
     plot2.rotate(-45, 0, 0)
     fig.append([plot2, plot1])
 
@@ -189,6 +215,7 @@ def main():
         sys.exit(usage)"""
 
     [locus, ld, annotation] = Read_Input(locus_name, ld_name, annotation_plot)
+
     value_plots = Plot_Position_Value(locus[:, 0], locus[:, 1], locus[:, 2])
     heatmap = Plot_Heatmap(ld, hue1, hue2)
     annotation_plot = Plot_Annotations(annotation_names, annotation)
