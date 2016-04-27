@@ -38,7 +38,7 @@ def vararg_callback(option, opt_str, value, parser):
 
 def Read_Input(locus_fname, ld_fname, annotation_fname):
     """Function that reads in all your data """
-    csv_file = csv.reader(open(locus_fname, 'rb'), delimiter=' ')
+    csv_file = csv.reader(open(locus_fname, 'rb'), delimiter=';')
     file_header = csv_file.next()  # extract header line
     locus_data = [row[:] for row in csv_file]
     locus = np.array(locus_data, dtype='double')
@@ -53,24 +53,39 @@ def Read_Input(locus_fname, ld_fname, annotation_fname):
         annotation.append(annotation_array)
     return [locus, ld, annotation]
 
-def Plot_Position_Value(position, zscore, pos_prob):
-
-    """Function that plots z-scores, posterior probabilites, other features """
-    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .9)
+def Plot_Statistic_Value(position, zscore):
     fig = plt.figure(figsize=(12, 6.25))
     sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position))
     plt.ylabel('-log10(pvalue)')
-    pvalue = Zscore_to_Pvalue(zscore)
+    z = zscore[0]
+    pvalue = Zscore_to_Pvalue(z)
     sub1.scatter(position, pvalue, color='#D64541')
-    sub2 = fig.add_subplot(2, 1, 2, axisbg='white')
+    sub2 = fig.add_subplot(2,1,2, axisbg='white')
+    plt.xlim(np.amin(position), np.amax(position))
+    plt.ylabel('-log10(pvalue)')
+    pvalue = Zscore_to_Pvalue(zscore[1])
+    sub2.scatter(position, pvalue, color='#1E824C')
+    value_plots = fig
+    return value_plots
+
+def Plot_Position_Value(position, pos_prob):
+
+    """Function that plots z-scores, posterior probabilites, other features """
+    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .9)
+    fig = plt.figure(figsize=(12, 3.25))
+    #fig = plt.figure(figsize=(12, 3.25))
+    #sub1 = fig.add_subplot(2, 1, 2, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position))
     plt.gca().set_ylim(bottom=0)
     plt.ylabel('Posterior probabilities')
     plt.xlabel('Location')
-    sub2.scatter(position, pos_prob, color='#2980b9')
+    plt.scatter(position, pos_prob, color='#2980b9')
+    plt.scatter(credible_loc, credible_prob, color ='#D91E18', marker='*')
+    #sub1.scatter(position, pos_prob, color='#2980b9')
     #add credible set
-    sub2.scatter(credible_loc, credible_prob, color = '#D91E18', marker='*')
+    #sub1.scatter(credible_loc, credible_prob, color ='#D91E18', marker='*')
+    #value_plots = fig
     value_plots = fig
     return value_plots #returns subplots with both graphs
 
@@ -139,28 +154,32 @@ def Plot_Annotations(annotation_names, annotation_vectors):
         annotation_tuple.append(annotation_plot)
     return annotation_tuple
 
-def Assemble_Figure(value_plots, heatmap, annotation_plot):
+def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
     """Assemble everything together"""
+    stats_plot.savefig('stats_plot.svg', format='svg', dpi=1200)
     value_plots.savefig('value_plots.svg', format='svg', dpi=1200)
     heatmap.savefig('heatmap.svg', format='svg', dpi=1200)
     fig = sg.SVGFigure("13in", "23in")
     value_plots = sg.fromfile('value_plots.svg')
+    stats_plot = sg.fromfile('stats_plot.svg')
     heatmap = sg.fromfile('heatmap.svg')
+    plot0 = stats_plot.getroot()
     plot1 = value_plots.getroot()
     plot2 = heatmap.getroot()
+    plot1.moveto(0, 400)
     y_scale = 50*(len(annotation_plot))
     if len(annotation_plot) == 1:
         y_scale = 0
-    plot2.moveto(-10, 550 + y_scale, scale=1.425)
+    plot2.moveto(-10, 750 + y_scale, scale=1.425)
     plot2.rotate(-45, 0, 0)
-    fig.append([plot2, plot1])
+    fig.append([plot2, plot0, plot1])
 
     index = 0
     for plot in annotation_plot:
         plot.savefig('annotation_plot.svg', format='svg', dpi=1200)
         plot = sg.fromfile('annotation_plot.svg')
         plot3 = plot.getroot()
-        y_move = 375 + 72*(index+1)
+        y_move = 575 + 72*(index+1)
         plot3.moveto(60, y_move, scale=.9)
         index += 1
         fig.append(plot3)
@@ -215,12 +234,13 @@ def main():
         sys.exit(usage)"""
 
     [locus, ld, annotation] = Read_Input(locus_name, ld_name, annotation_plot)
-
-    value_plots = Plot_Position_Value(locus[:, 0], locus[:, 1], locus[:, 2])
+    zscore = [locus[:, 1], locus[:, 4]]
+    stats_plot = Plot_Statistic_Value(locus[:, 0], zscore)
+    value_plots = Plot_Position_Value(locus[:, 0], locus[:, 2])
     heatmap = Plot_Heatmap(ld, hue1, hue2)
     annotation_plot = Plot_Annotations(annotation_names, annotation)
 
-    Assemble_Figure(value_plots, heatmap, annotation_plot)
+    Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot)
 
 
 
