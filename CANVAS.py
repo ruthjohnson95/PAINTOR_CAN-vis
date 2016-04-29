@@ -36,36 +36,48 @@ def vararg_callback(option, opt_str, value, parser):
     del parser.rargs[:len(value)]
     setattr(parser.values, option.dest, value)
 
-def Read_Input(locus_fname, ld_fname, annotation_fname):
+def Read_Input(locus_fname, ld_fname, annotation_fname, specific_annotations):
     """Function that reads in all your data """
     csv_file = csv.reader(open(locus_fname, 'rb'), delimiter=';')
     file_header = csv_file.next()  # extract header line
     locus_data = [row[:] for row in csv_file]
     locus = np.array(locus_data, dtype='double')
     ld = pd.read_csv(ld_fname, header=None, delimiter=r"\s+")
-    annotation = []
-    for i in range(0, len(annotation_fname)):
-        csv_file = csv.reader(open(annotation_fname[i], 'rb'), delimiter=' ')
-        file_header = csv_file.next()
-        annotation_data = [row[:] for row in csv_file]
-        annotation_array = np.array(annotation_data, dtype='int_')
-        annotation_array = annotation_array[:, 1]
-        annotation.append(annotation_array)
-    return [locus, ld, annotation]
+
+    csv_file = csv.reader(open(annotation_fname, 'rb'), delimiter=',')
+    annotation_header = csv_file.next()
+    annotation_names = []
+    for i in specific_annotations:
+        j = int(i)
+        lhs, rhs = annotation_header[j].split('.', 1)
+        annotation_names.append(lhs)
+    annotation_data = [row[:] for row in csv_file]
+    annotation_array = np.array(annotation_data, dtype='int_')
+    annotations = []
+    for i in range(0, len(specific_annotations)):
+        col = specific_annotations[i]
+        col = int(col) -1
+        specific_annotation = annotation_array[:, col]
+        annotations.append(specific_annotation)
+
+    return [locus, ld, annotations, annotation_names]
 
 def Plot_Statistic_Value(position, zscore):
     fig = plt.figure(figsize=(12, 6.25))
     sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
-    plt.xlim(np.amin(position), np.amax(position))
+    plt.xlim(np.amin(position), np.amax(position)+1)
+#    plt.gca().set_ylim(bottom=0)
     plt.ylabel('-log10(pvalue)')
     z = zscore[0]
     pvalue = Zscore_to_Pvalue(z)
     sub1.scatter(position, pvalue, color='#D64541')
+    plt.gca().set_ylim(bottom=0)
     sub2 = fig.add_subplot(2,1,2, axisbg='white')
-    plt.xlim(np.amin(position), np.amax(position))
+    plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('-log10(pvalue)')
     pvalue = Zscore_to_Pvalue(zscore[1])
     sub2.scatter(position, pvalue, color='#1E824C')
+    plt.gca().set_ylim(bottom=0)
     value_plots = fig
     return value_plots
 
@@ -74,18 +86,20 @@ def Plot_Position_Value(position, pos_prob):
     """Function that plots z-scores, posterior probabilites, other features """
     [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .9)
     fig = plt.figure(figsize=(12, 3.25))
-    #fig = plt.figure(figsize=(12, 3.25))
-    #sub1 = fig.add_subplot(2, 1, 2, axisbg='white')
-    plt.xlim(np.amin(position), np.amax(position))
-    plt.gca().set_ylim(bottom=0)
+    sub1 = fig.add_subplot(1,1,1, axisbg='white')
+    plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('Posterior probabilities')
     plt.xlabel('Location')
-    plt.scatter(position, pos_prob, color='#2980b9')
-    plt.scatter(credible_loc, credible_prob, color ='#D91E18', marker='*')
-    #sub1.scatter(position, pos_prob, color='#2980b9')
-    #add credible set
-    #sub1.scatter(credible_loc, credible_prob, color ='#D91E18', marker='*')
-    #value_plots = fig
+    sub1.scatter(position, pos_prob, color='#2980b9', label='Non-Credible Set')
+    sub1.scatter(credible_loc, credible_prob, color='#D91E18', marker='*', label='Credible Set')
+    legend = plt.legend(loc='upper right', shadow=True)
+    frame = legend.get_frame()
+    frame.set_facecolor('0.90')
+    for label in legend.get_texts():
+        label.set_fontsize('large')
+    for label in legend.get_lines():
+        label.set_linewidth(1.5)  # the legend line width
+    plt.gca().set_ylim(bottom=0)
     value_plots = fig
     return value_plots #returns subplots with both graphs
 
@@ -159,7 +173,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
     stats_plot.savefig('stats_plot.svg', format='svg', dpi=1200)
     value_plots.savefig('value_plots.svg', format='svg', dpi=1200)
     heatmap.savefig('heatmap.svg', format='svg', dpi=1200)
-    fig = sg.SVGFigure("13in", "23in")
+    fig = sg.SVGFigure("13in", "20in")
     value_plots = sg.fromfile('value_plots.svg')
     stats_plot = sg.fromfile('stats_plot.svg')
     heatmap = sg.fromfile('heatmap.svg')
@@ -202,10 +216,8 @@ def main():
     # Parse the command line data
     parser = OptionParser()
     parser.add_option("-l", "--locus_name", dest="locus_name")
-    #parser.add_option("-a", "--annotation_name", dest="annotation_name")
-    parser.add_option("-n", "--number_of_args", )
-    parser.add_option("-a", "--annotation_names", dest="annotation_names", action='callback', callback=vararg_callback)
-    parser.add_option("-p", "--annotation_plot", dest="annotation_plot", action='callback', callback=vararg_callback)
+    parser.add_option("-a", "--annotations", dest="annotations")
+    parser.add_option("-s", "--specific_annotations", dest="specific_annotations", action='callback', callback=vararg_callback)
     parser.add_option("-r", "--ld_name", dest="ld_name")
     parser.add_option("--h1", "--hue1", dest="hue1", default=240)
     parser.add_option("--h2", "--hue2", dest="hue2", default=10)
@@ -214,8 +226,8 @@ def main():
     (options, args) = parser.parse_args()
     locus_name = options.locus_name
     ld_name = options.ld_name
-    annotation_names = options.annotation_names
-    annotation_plot = options.annotation_plot
+    annotations = options.annotations
+    specific_annotations = options.specific_annotations
     hue1 = options.hue1
     hue2 = options.hue2
     usage = \
@@ -223,8 +235,8 @@ def main():
         Usage:
         --locus [-l] specify input file with fine-mapping locus (assumed to be ordered by position) *
         --ld_name [r] specify the ld_matrix file name *
-        --annotation_name [-a]  specify annotation file name *
-        --plot_annotations [-p] specify which annotations to plot [default: None]
+        --annotations [-a]  specify annotation file name *
+        --s [-s] specify which annotations to plot [default: None]
         --hue1 [-h1]
         --hue2 [-h2]
         """
@@ -233,7 +245,7 @@ def main():
     """if(locus_name == None or annotation_name == None or ld_name == None or plot_annotations == None):
         sys.exit(usage)"""
 
-    [locus, ld, annotation] = Read_Input(locus_name, ld_name, annotation_plot)
+    [locus, ld, annotation, annotation_names] = Read_Input(locus_name, ld_name, annotations, specific_annotations)
     zscore = [locus[:, 1], locus[:, 4]]
     stats_plot = Plot_Statistic_Value(locus[:, 0], zscore)
     value_plots = Plot_Position_Value(locus[:, 0], locus[:, 2])
