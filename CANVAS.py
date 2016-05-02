@@ -36,46 +36,37 @@ def vararg_callback(option, opt_str, value, parser):
     del parser.rargs[:len(value)]
     setattr(parser.values, option.dest, value)
 
-def Read_Input(locus_fname, ld_fname, annotation_fname, specific_annotations):
+def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_annotations):
     """Function that reads in all your data """
-    csv_file = csv.reader(open(locus_fname, 'rb'), delimiter=';')
-    file_header = csv_file.next()  # extract header line
-    locus_data = [row[:] for row in csv_file]
-    locus = np.array(locus_data, dtype='double')
+    zscore_data = pd.read_csv(locus_fname, delim_whitespace=True)
+    zscores = zscore_data[zscore_names]
+    location = zscore_data['pos']
+    pos_prob = zscore_data['Posterior_Prob']
     ld = pd.read_csv(ld_fname, header=None, delimiter=r"\s+")
+    annotation_data = pd.read_csv(annotation_fname, delim_whitespace=True)
+    annotations = annotation_data[specific_annotations]
+    zscores = zscores.as_matrix()
+    pos_prob = pos_prob.as_matrix()
+    location = location.as_matrix()
+    annotations = annotations.as_matrix()
+    return [zscores,pos_prob,location, ld, annotations]
 
-    csv_file = csv.reader(open(annotation_fname, 'rb'), delimiter=',')
-    annotation_header = csv_file.next()
-    annotation_names = []
-    for i in specific_annotations:
-        j = int(i)
-        lhs, rhs = annotation_header[j].split('.', 1)
-        annotation_names.append(lhs)
-    annotation_data = [row[:] for row in csv_file]
-    annotation_array = np.array(annotation_data, dtype='int_')
-    annotations = []
-    for i in range(0, len(specific_annotations)):
-        col = specific_annotations[i]
-        col = int(col) -1
-        specific_annotation = annotation_array[:, col]
-        annotations.append(specific_annotation)
-
-    return [locus, ld, annotations, annotation_names]
-
-def Plot_Statistic_Value(position, zscore):
+def Plot_Statistic_Value(position, zscore, zscore_names):
     fig = plt.figure(figsize=(12, 6.25))
     sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
 #    plt.gca().set_ylim(bottom=0)
     plt.ylabel('-log10(pvalue)')
-    z = zscore[0]
+    plt.xlabel(zscore_names[0])
+    z = zscore[:,0]
     pvalue = Zscore_to_Pvalue(z)
     sub1.scatter(position, pvalue, color='#D64541')
     plt.gca().set_ylim(bottom=0)
     sub2 = fig.add_subplot(2,1,2, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('-log10(pvalue)')
-    pvalue = Zscore_to_Pvalue(zscore[1])
+    plt.xlabel(zscore_names[1])
+    pvalue = Zscore_to_Pvalue(zscore[:,1])
     sub2.scatter(position, pvalue, color='#1E824C')
     plt.gca().set_ylim(bottom=0)
     value_plots = fig
@@ -216,6 +207,7 @@ def main():
     # Parse the command line data
     parser = OptionParser()
     parser.add_option("-l", "--locus_name", dest="locus_name")
+    parser.add_option("-z", "--zscores", dest="zscores", action='callback', callback=vararg_callback)
     parser.add_option("-a", "--annotations", dest="annotations")
     parser.add_option("-s", "--specific_annotations", dest="specific_annotations", action='callback', callback=vararg_callback)
     parser.add_option("-r", "--ld_name", dest="ld_name")
@@ -225,9 +217,10 @@ def main():
     # extract options
     (options, args) = parser.parse_args()
     locus_name = options.locus_name
+    zscore_names = options.zscores
     ld_name = options.ld_name
     annotations = options.annotations
-    specific_annotations = options.specific_annotations
+    annotation_names = options.specific_annotations
     hue1 = options.hue1
     hue2 = options.hue2
     usage = \
@@ -245,12 +238,11 @@ def main():
     """if(locus_name == None or annotation_name == None or ld_name == None or plot_annotations == None):
         sys.exit(usage)"""
 
-    [locus, ld, annotation, annotation_names] = Read_Input(locus_name, ld_name, annotations, specific_annotations)
-    zscore = [locus[:, 1], locus[:, 4]]
-    stats_plot = Plot_Statistic_Value(locus[:, 0], zscore)
-    value_plots = Plot_Position_Value(locus[:, 0], locus[:, 2])
+    [zscores, pos_prob, location, ld, annotations] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names)
+    stats_plot = Plot_Statistic_Value(location, zscores, zscore_names)
+    value_plots = Plot_Position_Value(location, pos_prob)
     heatmap = Plot_Heatmap(ld, hue1, hue2)
-    annotation_plot = Plot_Annotations(annotation_names, annotation)
+    annotation_plot = Plot_Annotations(annotation_names, annotations)
 
     Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot)
 
