@@ -150,7 +150,7 @@ def Plot_Annotations(annotation_names, annotation_vectors):
         n = len(annotation)
         bounds = range(1, n+1)
         norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-        annotation_plot = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+        annotation_plot = mpl.colorbar.ColorbarBase(ax = None, cmap=cmap,
                                                      norm=norm,
                                                      spacing='proportional',
                                                      orientation='horizontal')
