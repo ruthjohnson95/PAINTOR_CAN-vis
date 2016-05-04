@@ -52,47 +52,41 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
     return [zscores,pos_prob,location, ld, annotations]
 
 def Plot_Statistic_Value(position, zscore, zscore_names):
-    fig = plt.figure(figsize=(12, 6.25))
-    sub1 = fig.add_subplot(2, 1, 1, axisbg='white')
-    plt.xlim(np.amin(position), np.amax(position)+1)
-#    plt.gca().set_ylim(bottom=0)
-    plt.ylabel('-log10(pvalue)')
-    plt.xlabel(zscore_names[0])
-    z = zscore[:,0]
-    pvalue = Zscore_to_Pvalue(z)
-    sub1.scatter(position, pvalue, color='#D64541')
-    plt.gca().set_ylim(bottom=0)
-    sub2 = fig.add_subplot(2,1,2, axisbg='white')
-    plt.xlim(np.amin(position), np.amax(position)+1)
-    plt.ylabel('-log10(pvalue)')
-    plt.xlabel(zscore_names[1])
-    pvalue = Zscore_to_Pvalue(zscore[:,1])
-    sub2.scatter(position, pvalue, color='#1E824C')
-    plt.gca().set_ylim(bottom=0)
-    value_plots = fig
-    return value_plots
+    zscore_tuple = []
+    color_array = ['#D64541', '#1E824C', '#F89406']
+    for i in range(0, len(zscore_names)):
+        fig = plt.figure(figsize=(12, 3.75))
+        sub = fig.add_subplot(1,1,1, axisbg='white')
+        plt.xlim(np.amin(position), np.amax(position) + 1)
+        plt.ylabel('-log10(pvalue)')
+        plt.xlabel(zscore_names[0])
+        z = zscore[:, 0]
+        pvalue = Zscore_to_Pvalue(z)
+        sub.scatter(position, pvalue, color=color_array[i])
+        plt.gca().set_ylim(bottom=0)
+        value_plot = fig
+        zscore_tuple.append(value_plot)
+    return zscore_tuple
 
 def Plot_Position_Value(position, pos_prob):
-
     """Function that plots z-scores, posterior probabilites, other features """
-    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .9)
+    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .99)
     fig = plt.figure(figsize=(12, 3.25))
     sub1 = fig.add_subplot(1,1,1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('Posterior probabilities')
     plt.xlabel('Location')
     sub1.scatter(position, pos_prob, color='#2980b9', label='Non-Credible Set')
-    sub1.scatter(credible_loc, credible_prob, color='#D91E18', marker='*', label='Credible Set')
+    sub1.scatter(credible_loc, credible_prob, color='#D91E18', label='Credible Set')
     legend = plt.legend(loc='upper right', shadow=True)
     frame = legend.get_frame()
-    frame.set_facecolor('0.90')
     for label in legend.get_texts():
         label.set_fontsize('large')
     for label in legend.get_lines():
         label.set_linewidth(1.5)  # the legend line width
     plt.gca().set_ylim(bottom=0)
     value_plots = fig
-    return value_plots #returns subplots with both graphs
+    return value_plots
 
 def Credible_Set(position, pos_prob, threshold):
     total = sum(pos_prob)
@@ -135,7 +129,7 @@ def Plot_Annotations(annotation_names, annotation_vectors):
     annotation_tuple = []
     color_array = ['#663399', '#e74c3c', '#049372', '#F89406', '#1E8BC3']
     for i in range(0, len(annotation_names)):
-        annotation = annotation_vectors[i]
+        annotation = annotation_vectors[:,i]
         colors = []
         for a in annotation:
             if a == 1:
@@ -147,51 +141,66 @@ def Plot_Annotations(annotation_names, annotation_vectors):
         cmap = mpl.colors.ListedColormap(colors)
         cmap.set_over('0.25')
         cmap.set_under('0.75')
-        n = len(annotation)
-        bounds = range(1, n+1)
+        bounds = range(1, len(annotation)+1)
         norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-        annotation_plot = mpl.colorbar.ColorbarBase(ax = None, cmap=cmap,
+        annotation_plot = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
                                                      norm=norm,
                                                      spacing='proportional',
                                                      orientation='horizontal')
         annotation_plot.set_label(annotation_names[i])
+        annotation_plot.set_ticks([])
         annotation_plot = fig
         annotation_tuple.append(annotation_plot)
     return annotation_tuple
 
+
 def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
     """Assemble everything together"""
-    stats_plot.savefig('stats_plot.svg', format='svg', dpi=1200)
+    fig = sg.SVGFigure("9in", "14in")
     value_plots.savefig('value_plots.svg', format='svg', dpi=1200)
     heatmap.savefig('heatmap.svg', format='svg', dpi=1200)
-    fig = sg.SVGFigure("13in", "20in")
     value_plots = sg.fromfile('value_plots.svg')
-    stats_plot = sg.fromfile('stats_plot.svg')
     heatmap = sg.fromfile('heatmap.svg')
-    plot0 = stats_plot.getroot()
     plot1 = value_plots.getroot()
-    plot2 = heatmap.getroot()
-    plot1.moveto(0, 400)
-    y_scale = 50*(len(annotation_plot))
+    plot4 = heatmap.getroot()
+
+    #transform and add heatmap figure
+    y_scale = 50 * (len(annotation_plot)) + len(stats_plot)*275 + 275
     if len(annotation_plot) == 1:
         y_scale = 0
-    plot2.moveto(-10, 750 + y_scale, scale=1.425)
-    plot2.rotate(-45, 0, 0)
-    fig.append([plot2, plot0, plot1])
+    plot4.moveto(-10, y_scale, scale=1.425)
+    plot4.rotate(-45, 0, 0)
+    fig.append(plot4)
 
+    #transform and add value plot
+    y_move = 275*len(stats_plot)
+    plot1.moveto(0, y_move)
+    fig.append(plot1)
+
+    #transform and add zscore plots
+    index = 0
+    for plot in stats_plot:
+        plot.savefig('stats_plot.svg', format='svg', dpi=1200)
+        plot = sg.fromfile('stats_plot.svg')
+        plot2 = plot.getroot()
+        y_move = 275 * index
+        index += 1
+        plot2.moveto(0, y_move)
+        fig.append(plot2)
+
+    #transform and add annotations plots
     index = 0
     for plot in annotation_plot:
         plot.savefig('annotation_plot.svg', format='svg', dpi=1200)
         plot = sg.fromfile('annotation_plot.svg')
         plot3 = plot.getroot()
-        y_move = 575 + 72*(index+1)
+        y_move = 200+50*(index+1) + 275*len(stats_plot)
         plot3.moveto(60, y_move, scale=.9)
         index += 1
         fig.append(plot3)
-
+    #export final figure as a svg and pdf
     fig.save("fig_final.svg")
     cairosvg.svg2pdf(url='fig_final.svg', write_to='fig_final.pdf')
-
 
 def Zscore_to_Pvalue(zscore):
     """Function that converts zscores to pvalues"""
