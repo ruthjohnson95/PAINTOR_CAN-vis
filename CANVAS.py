@@ -1,9 +1,7 @@
-from string import letters
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import csv
 import matplotlib as mpl
 from scipy.stats import norm
 import math
@@ -42,7 +40,7 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
     zscores = zscore_data[zscore_names]
     location = zscore_data['pos']
     pos_prob = zscore_data['Posterior_Prob']
-    ld = pd.read_csv(ld_fname, header=None, delimiter=r"\s+")
+    ld = pd.read_csv(ld_fname, header=None, delim_whitespace=True)
     annotation_data = pd.read_csv(annotation_fname, delim_whitespace=True)
     annotations = annotation_data[specific_annotations]
     zscores = zscores.as_matrix()
@@ -59,8 +57,8 @@ def Plot_Statistic_Value(position, zscore, zscore_names):
         sub = fig.add_subplot(1,1,1, axisbg='white')
         plt.xlim(np.amin(position), np.amax(position) + 1)
         plt.ylabel('-log10(pvalue)')
-        plt.xlabel(zscore_names[0])
-        z = zscore[:, 0]
+        plt.xlabel(zscore_names[i])
+        z = zscore[:, i]
         pvalue = Zscore_to_Pvalue(z)
         sub.scatter(position, pvalue, color=color_array[i])
         plt.gca().set_ylim(bottom=0)
@@ -119,8 +117,8 @@ def Plot_Heatmap(correlation_matrix, hue1, hue2):
     h1 = int(hue1)
     h2 = int(hue2)
     cmap = sns.diverging_palette(h1, h2, as_cmap=True)
-    sns.heatmap(correlation, mask=mask, cmap=cmap, vmax=.3, square=True,
-                linewidths=.5, cbar=False, xticklabels=False, yticklabels=False, ax=None)
+    sns.heatmap(correlation, mask=mask, cmap=cmap, square=True,
+                linewidths=0, cbar=False, xticklabels=False, yticklabels=False, ax=None)
     heatmap = fig
     return heatmap
 
@@ -243,9 +241,9 @@ def main():
         --hue2 [-h2]
         """
 
-    # check if required flags are presnt
-    """if(locus_name == None or annotation_name == None or ld_name == None or plot_annotations == None):
-        sys.exit(usage)"""
+    #check if required flags are presnt
+    #if(locus_name == None or annotation_names == None or ld_name == None):
+        #sys.exit(usage)
 
     [zscores, pos_prob, location, ld, annotations] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names)
     stats_plot = Plot_Statistic_Value(location, zscores, zscore_names)
