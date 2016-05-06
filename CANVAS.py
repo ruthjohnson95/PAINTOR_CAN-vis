@@ -3,6 +3,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.patches as mpatches
 from scipy.stats import norm
 import math
 from optparse import OptionParser
@@ -51,7 +52,7 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
 
 def Plot_Statistic_Value(position, zscore, zscore_names):
     zscore_tuple = []
-    color_array = ['#D64541', '#1E824C', '#F89406']
+    color_array = ['#D64541', '#2980b9', '#F89406']
     for i in range(0, len(zscore_names)):
         fig = plt.figure(figsize=(12, 3.75))
         sub = fig.add_subplot(1,1,1, axisbg='white')
@@ -66,22 +67,21 @@ def Plot_Statistic_Value(position, zscore, zscore_names):
         zscore_tuple.append(value_plot)
     return zscore_tuple
 
-def Plot_Position_Value(position, pos_prob):
+def Plot_Position_Value(position, pos_prob, threshold):
     """Function that plots z-scores, posterior probabilites, other features """
-    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, .99)
+    [credible_loc, credible_prob] = Credible_Set(position, pos_prob, threshold)
     fig = plt.figure(figsize=(12, 3.25))
     sub1 = fig.add_subplot(1,1,1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('Posterior probabilities')
     plt.xlabel('Location')
     sub1.scatter(position, pos_prob, color='#2980b9', label='Non-Credible Set')
-    sub1.scatter(credible_loc, credible_prob, color='#D91E18', label='Credible Set')
-    legend = plt.legend(loc='upper right', shadow=True)
-    frame = legend.get_frame()
-    for label in legend.get_texts():
-        label.set_fontsize('large')
-    for label in legend.get_lines():
-        label.set_linewidth(1.5)  # the legend line width
+    if threshold != 0:
+        sub1.scatter(credible_loc, credible_prob, color='#D91E18', label='Credible Set')
+        credible_set = mpatches.Patch(color='#D91E18', label='Credible Set')
+        legend = plt.legend(handles=[credible_set])
+        for label in legend.get_texts():
+            label.set_fontsize('large')
     plt.gca().set_ylim(bottom=0)
     value_plots = fig
     return value_plots
@@ -107,6 +107,27 @@ def Credible_Set(position, pos_prob, threshold):
             break
     return credible_set_loc, credible_set_value
 
+def resize_LD(ld, zscores):
+    pvalue = Zscore_to_Pvalue(zscores)
+    ld_tuple_vec = []
+    for i in range(0, len(pvalue)):
+        tup = (i, pvalue[i])
+        ld_tuple_vec.append(tup)
+    ld_tuple_vec = sorted(ld_tuple_vec, key=lambda  x: x[1])
+    ld_loc = []
+    total = 0
+    for tup in ld_tuple_vec:
+        total += 1
+        ld_loc.append(tup[0])
+    bad_values = ld_loc[500:]
+    ld = ld.as_matrix()
+    for value in bad_values:
+        #delete rows
+        ld = np.delete(ld, value, 0)
+        #delete columns
+        ld = np.delete(ld, value, 1)
+    return ld
+
 def Plot_Heatmap(correlation_matrix, hue1, hue2):
     """Function that plots heatmap of LD matrix"""
     fig = plt.figure(figsize=(6.25, 6.25))
@@ -119,13 +140,13 @@ def Plot_Heatmap(correlation_matrix, hue1, hue2):
     cmap = sns.diverging_palette(h1, h2, as_cmap=True)
     sns.heatmap(correlation, mask=mask, cmap=cmap, square=True,
                 linewidths=0, cbar=False, xticklabels=False, yticklabels=False, ax=None)
-    heatmap = fig
+    heatmap = plt.figure(figsize=(.1, .1))
     return heatmap
 
 def Plot_Annotations(annotation_names, annotation_vectors):
     """Plot the annotations with labels"""
     annotation_tuple = []
-    color_array = ['#663399', '#e74c3c', '#049372', '#F89406', '#1E8BC3']
+    color_array = ['#D64541','#2980b9','#663399', '#e74c3c', '#049372']
     for i in range(0, len(annotation_names)):
         annotation = annotation_vectors[:,i]
         colors = []
@@ -171,8 +192,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
     fig.append(plot4)
 
     #transform and add value plot
-    y_move = 275*len(stats_plot)
-    plot1.moveto(0, y_move)
+    plot1.moveto(0, 0)
     fig.append(plot1)
 
     #transform and add zscore plots
@@ -181,7 +201,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
         plot.savefig('stats_plot.svg', format='svg', dpi=1200)
         plot = sg.fromfile('stats_plot.svg')
         plot2 = plot.getroot()
-        y_move = 275 * index
+        y_move = 275 * index + 250
         index += 1
         plot2.moveto(0, y_move)
         fig.append(plot2)
@@ -218,6 +238,8 @@ def main():
     parser.add_option("-a", "--annotations", dest="annotations")
     parser.add_option("-s", "--specific_annotations", dest="specific_annotations", action='callback', callback=vararg_callback)
     parser.add_option("-r", "--ld_name", dest="ld_name")
+    parser.add_option("-t", "--threshold", dest="threshold", default=0)
+    parser.add_option("-d","--ld", dest="bool_ld", default="y")
     parser.add_option("--h1", "--hue1", dest="hue1", default=240)
     parser.add_option("--h2", "--hue2", dest="hue2", default=10)
 
@@ -228,17 +250,23 @@ def main():
     ld_name = options.ld_name
     annotations = options.annotations
     annotation_names = options.specific_annotations
+    threshold = options.threshold
+    threshold = int(threshold)*.01
+    bool_ld = options.bool_ld
     hue1 = options.hue1
     hue2 = options.hue2
     usage = \
     """ Need the following flags specified (*)
         Usage:
         --locus [-l] specify input file with fine-mapping locus (assumed to be ordered by position) *
-        --ld_name [r] specify the ld_matrix file name *
-        --annotations [-a]  specify annotation file name *
-        --s [-s] specify which annotations to plot [default: None]
-        --hue1 [-h1]
-        --hue2 [-h2]
+        --zscores [-z] specific zscores to be plotted (1-3 arguments)
+        --annotations [-a]  specify annotation file name
+        --specific_annotations [-s] annotations to be plotted (1-5 arguments)
+        --ld_name [r] specify the ld_matrix file name
+        --threshold [-t] threshold for credible set [default: 0]
+        --ld [-d] choice to plot the ld matrix [default: y]
+        --hue1 [-h1] first color for ld matrix [default: 240]
+        --hue2 [-h2] second color for ld matrix [default: 10]
         """
 
     #check if required flags are presnt
@@ -247,8 +275,13 @@ def main():
 
     [zscores, pos_prob, location, ld, annotations] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names)
     stats_plot = Plot_Statistic_Value(location, zscores, zscore_names)
-    value_plots = Plot_Position_Value(location, pos_prob)
-    heatmap = Plot_Heatmap(ld, hue1, hue2)
+    value_plots = Plot_Position_Value(location, pos_prob, threshold)
+    if ld.shape[1] > 500 and bool_ld == "y":
+        ld = resize_LD(ld, zscores[:,1])
+    if bool_ld == "y":
+        heatmap = Plot_Heatmap(ld, hue1, hue2)
+    else:
+        heatmap = plt.figure(figsize=(.1, .1))
     annotation_plot = Plot_Annotations(annotation_names, annotations)
 
     Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot)
