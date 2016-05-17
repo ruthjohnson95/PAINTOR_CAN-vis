@@ -8,9 +8,8 @@ from scipy.stats import norm
 import math
 from optparse import OptionParser
 import svgutils.transform as sg
-import cairosvg
 import sys
-
+import cairosvg
 
 def vararg_callback(option, opt_str, value, parser):
     """Function that allows for a variable number of arguments at the command line"""
@@ -53,42 +52,52 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
     annotations = annotations.as_matrix()
     return [zscores,pos_prob,location, ld, annotations]
 
-def Plot_Statistic_Value(position, zscore, zscore_names):
+def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
     """function that plots pvalues from given zscores"""
     zscore_tuple = []
     for i in range(0, len(zscore_names)):
-        fig = plt.figure(figsize=(4, 1.75))
+        fig = plt.figure(figsize=(12, 3.75))
         sub = fig.add_subplot(1,1,1, axisbg='white')
         plt.xlim(np.amin(position), np.amax(position) + 1)
-        plt.ylabel('-log10(pvalue)')
+        plt.ylabel('-log10(pvalue)', fontsize=16)
         z = zscore[:, i]
         pvalue = Zscore_to_Pvalue(z)
-        sub.scatter(position, pvalue, color='#6B6B6B')
+        if greyscale == "y":
+            sub.scatter(position, pvalue, color='#6B6B6B')
+        else:
+            color_array = ['#D64541', '#2980b9', '#F89406']
+            sub.scatter(position, pvalue, color=color_array[i])
         plt.gca().set_ylim(bottom=0)
-        credible_set = mpatches.Patch(color='#FFFFFF', label=zscore_names[i])
-        legend = plt.legend(handles=[credible_set])
+        label = mpatches.Patch(color='#FFFFFF', label=zscore_names[i])
+        legend = plt.legend(handles=[label])
         for label in legend.get_texts():
             label.set_fontsize('large')
         value_plot = fig
         zscore_tuple.append(value_plot)
     return zscore_tuple
 
-def Plot_Position_Value(position, pos_prob, threshold):
+def Plot_Position_Value(position, pos_prob, threshold, greyscale):
     """Function that plots z-scores, posterior probabilites, other features """
+    if greyscale == "y":
+        plot_color = '#BEBEBE'
+        set_color = '#000000'
+    else:
+        plot_color = '#2980b9'
+        set_color = '#D91E18'
     [credible_loc, credible_prob] = Credible_Set(position, pos_prob, threshold)
-    fig = plt.figure(figsize=(4, 1.6))
+    fig = plt.figure(figsize=(12, 3.25))
     sub1 = fig.add_subplot(1,1,1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
-    plt.ylabel('Posterior probabilities')
-    plt.xlabel('Location')
-    sub1.scatter(position, pos_prob, color='#BEBEBE', label='Non-Credible Set')
+    plt.ylabel('Posterior probabilities', fontsize=16)
+    plt.xlabel('Location', fontsize=16)
+    sub1.scatter(position, pos_prob, color=plot_color)
     if threshold != 0:
-        sub1.scatter(credible_loc, credible_prob, color='#000000', label='Credible Set')
-        title = "Credible Set: " + str(threshold) + "%"
-        credible_set = mpatches.Patch(color='#000000', label=title)
+        sub1.scatter(credible_loc, credible_prob, color=set_color, label='Credible Set', marker='*')
+        title = "Credible Set: " + str(threshold*100) + "%"
+        credible_set = mpatches.Patch(color=set_color, label=title)
         legend = plt.legend(handles=[credible_set])
         for label in legend.get_texts():
-            label.set_fontsize(10)
+            label.set_fontsize(16)
     plt.gca().set_ylim(bottom=0)
     value_plots = fig
     return value_plots
@@ -115,31 +124,56 @@ def Credible_Set(position, pos_prob, threshold):
             break
     return credible_set_loc, credible_set_value
 
-def Plot_Heatmap(correlation_matrix):
+def Plot_Heatmap(correlation_matrix, greyscale):
     """Function that plots heatmap of LD matrix"""
-    fig = plt.figure(figsize=(3.12, 3.12))
+    fig = plt.figure(figsize=(6.25, 6.25))
     sns.set(style="white")
     correlation = correlation_matrix.corr()
     mask = np.zeros_like(correlation, dtype=np.bool)
     mask[np.triu_indices_from(mask)] = True
-    cmap = sns.light_palette("black", as_cmap=True)
+    if greyscale == "y":
+        cmap = sns.light_palette("black", as_cmap=True)
+    else:
+        cmap = sns.diverging_palette(240, 0, as_cmap=True)
     sns.heatmap(correlation, mask=mask, cmap=cmap, square=True,
                 linewidths=0, cbar=False, xticklabels=False, yticklabels=False, ax=None)
     heatmap = fig
-    return heatmap
 
-def Plot_Annotations(annotation_names, annotation_vectors):
+    matrix = correlation_matrix.as_matrix()
+    min_value = np.amin(matrix)
+    max_value = np.amax(matrix)
+    fig = plt.figure(figsize=(3, 1.0))
+    ax1 = fig.add_axes([0.05, 0.80, 0.9, 0.15])
+    if greyscale == 'y':
+        cmap = mpl.cm.binary
+    else:
+        cmap = mpl.cm.RdBu
+    norm = mpl.colors.Normalize(vmin=min_value, vmax=max_value)
+    bounds = [min_value, 0, max_value]
+    mpl.colorbar.ColorbarBase(ax1, cmap=cmap, norm=norm, ticks=bounds, orientation='horizontal')
+    bar = fig
+    return [heatmap, bar]
+
+def Plot_Annotations(annotation_names, annotation_vectors, greyscale):
     """Plot the annotations with labels"""
     annotation_tuple = []
     for i in range(0, len(annotation_names)):
         annotation = annotation_vectors[:,i]
         colors = []
-        for a in annotation:
-            if a == 1:
-                colors.append('#000000')
-            else:
-                colors.append('#FFFFFF')
-        fig = plt.figure(figsize=(4, .6))
+        if greyscale == "y":
+            for a in annotation:
+                if a == 1:
+                    colors.append('#000000')
+                else:
+                    colors.append('#FFFFFF')
+        else:
+            color_array = ['#D64541', '#2980b9', '#663399', '#e74c3c', '#049372']
+            for a in annotation:
+                if a == 1:
+                    colors.append(color_array[i])
+                else:
+                    colors.append('#FFFFFF')
+        fig = plt.figure(figsize=(12, 1))
         ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
         cmap = mpl.colors.ListedColormap(colors)
         cmap.set_over('0.25')
@@ -148,27 +182,34 @@ def Plot_Annotations(annotation_names, annotation_vectors):
         norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
         annotation_plot = mpl.colorbar.ColorbarBase(ax2, cmap=cmap, norm=norm, spacing='proportional',
                                                     orientation='horizontal')
-        annotation_plot.set_label(annotation_names[i], fontsize=18)
+        annotation_plot.set_label(annotation_names[i], fontsize=16)
         annotation_plot.set_ticks([])
         annotation_plot = fig
         annotation_tuple.append(annotation_plot)
     return annotation_tuple
 
-
-def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
+def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     """Assemble everything together and return svg and pdf of final figure"""
-    DPI = 600
-    fig = sg.SVGFigure("4.5in", "7in")
+    DPI = 300
+    size_prob_plot = 200
+    size_stat_plot = 275
+    size_annotation_plot = 50
+    size_width = "9in"
+    size_height = "13in"
+    fig = sg.SVGFigure(size_width, size_height)
     value_plots.savefig('value_plots.svg', format='svg', dpi=DPI)
-    heatmap.savefig('heatmap.svg', format='svg', dpi=DPI)
     value_plots = sg.fromfile('value_plots.svg')
-    heatmap = sg.fromfile('heatmap.svg')
     plot1 = value_plots.getroot()
-    plot4 = heatmap.getroot()
 
-    size_prob_plot = 100
-    size_stat_plot = 160
-    size_annotation_plot = 25
+    # Get heatmap and colorbar
+    plot4 = heatmap[0]
+    plot4.savefig('heatmap.svg', format='svg', dpi=DPI)
+    plot4 = sg.fromfile('heatmap.svg')
+    plot4 = plot4.getroot()
+    colorbar = heatmap[1]
+    colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
+    colorbar = sg.fromfile('colorbar.svg')
+    colorbar = colorbar.getroot()
 
     #transform and add heatmap figure; must be added first for correct layering
     y_scale = size_annotation_plot * (len(annotation_plot)) + len(stats_plot)*size_stat_plot + size_stat_plot
@@ -177,6 +218,10 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
     plot4.moveto(-10, y_scale, scale=1.425)
     plot4.rotate(-45, 0, 0)
     fig.append(plot4)
+
+    # add colorbar
+    colorbar.moveto(600, y_scale+250)
+    fig.append(colorbar)
 
     #transform and add value plot
     plot1.moveto(0, 0)
@@ -200,14 +245,16 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot):
         plot.savefig('stats_plot.svg', format='svg', dpi=DPI)
         plot = sg.fromfile('stats_plot.svg')
         plot2 = plot.getroot()
-        y_move = 275 * index + len_annotation_plot
+        y_move = size_stat_plot * index + len_annotation_plot
         index += 1
         plot2.moveto(0, y_move)
         fig.append(plot2)
 
     #export final figure as a svg and pdf
-    fig.save("fig_final.svg")
-    cairosvg.svg2pdf(url='fig_final.svg', write_to='fig_final.pdf')
+    svgfile = output + ".svg"
+    fig.save(svgfile)
+    pdffile = output + ".pdf"
+    cairosvg.svg2pdf(url=svgfile, write_to=pdffile)
 
 def Zscore_to_Pvalue(zscore):
     """Function that converts zscores to pvalues"""
@@ -225,6 +272,9 @@ def main():
     parser.add_option("-s", "--specific_annotations", dest="specific_annotations", action='callback', callback=vararg_callback)
     parser.add_option("-r", "--ld_name", dest="ld_name")
     parser.add_option("-t", "--threshold", dest="threshold", default=0)
+    parser.add_option("-g", "--greyscale", dest="greyscale", default='n')
+    parser.add_option("-o", "--output", dest="output", default='fig_final')
+    parser.add_option("-d", "--plot_ld", dest="plot_ld", default='y')
 
     # extract options
     (options, args) = parser.parse_args()
@@ -235,6 +285,9 @@ def main():
     annotation_names = options.specific_annotations
     threshold = options.threshold
     threshold = int(threshold)*.01
+    greyscale = options.greyscale
+    output = options.output
+    plot_ld = options.plot_ld
     usage = \
     """ Need the following flags specified (*)
         Usage:
@@ -244,6 +297,9 @@ def main():
         --specific_annotations [-s] annotations to be plotted
         --ld_name [r] specify the ld_matrix file name
         --threshold [-t] threshold for credible set [default: 0]
+        --greyscale [-g] sets colorscheme to greyscale [default: n]
+        --output [-o] desired name of output file
+        --plot_ld [-d] specify to plot LD matrix or not [default: y]
         """
 
     #check if required flags are presnt
@@ -251,12 +307,12 @@ def main():
         sys.exit(usage)
 
     [zscores, pos_prob, location, ld, annotations] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names)
-    stats_plot = Plot_Statistic_Value(location, zscores, zscore_names)
-    value_plots = Plot_Position_Value(location, pos_prob, threshold)
-    heatmap = Plot_Heatmap(ld)
-    annotation_plot = Plot_Annotations(annotation_names, annotations)
+    stats_plot = Plot_Statistic_Value(location, zscores, zscore_names, greyscale)
+    value_plots = Plot_Position_Value(location, pos_prob, threshold, greyscale)
+    heatmap = Plot_Heatmap(ld, greyscale)
+    annotation_plot = Plot_Annotations(annotation_names, annotations, greyscale)
 
-    Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot)
+    Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output)
 
 
 
