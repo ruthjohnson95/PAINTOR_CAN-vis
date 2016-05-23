@@ -37,13 +37,16 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
     zscores = zscore_data[zscore_names]
     location = zscore_data['pos']
     pos_prob = zscore_data['Posterior_Prob']
-    ld = pd.read_csv(ld_fname, header=None, delim_whitespace=True)
-    warning = \
-    """ Warning: LD matrix cannot have more than 400 entries per row
-    """
-    n = ld.shape
-    if n[0] > 400:
-        sys.exit(warning)
+    if ld_fname is not None:
+        ld = pd.read_csv(ld_fname, header=None, delim_whitespace=True)
+        warning = \
+        """ Warning: LD matrix cannot have more than 400 entries per row
+        """
+        n = ld.shape
+        if n[0] > 400:
+            sys.exit(warning)
+    else:
+        ld = None
     annotation_data = pd.read_csv(annotation_fname, delim_whitespace=True)
     annotations = annotation_data[specific_annotations]
     zscores = zscores.as_matrix()
@@ -59,14 +62,15 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
         fig = plt.figure(figsize=(12, 3.75))
         sub = fig.add_subplot(1,1,1, axisbg='white')
         plt.xlim(np.amin(position), np.amax(position) + 1)
+        plt.tick_params(axis='both', which='major', labelsize=16)
         plt.ylabel('-log10(pvalue)', fontsize=16)
         z = zscore[:, i]
         pvalue = Zscore_to_Pvalue(z)
         if greyscale == "y":
             sub.scatter(position, pvalue, color='#6B6B6B')
         else:
-            color_array = ['#D64541', '#2980b9', '#F89406']
-            sub.scatter(position, pvalue, color=color_array[i])
+            color_array = ['#D64541']
+            sub.scatter(position, pvalue, color=color_array[0])
         plt.gca().set_ylim(bottom=0)
         label = mpatches.Patch(color='#FFFFFF', label=zscore_names[i])
         legend = plt.legend(handles=[label])
@@ -89,6 +93,7 @@ def Plot_Position_Value(position, pos_prob, threshold, greyscale):
     sub1 = fig.add_subplot(1,1,1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('Posterior probabilities', fontsize=16)
+    plt.tick_params(axis='both', which='major', labelsize=16)
     plt.xlabel('Location', fontsize=16)
     sub1.scatter(position, pos_prob, color=plot_color)
     if threshold != 0:
@@ -134,7 +139,7 @@ def Plot_Heatmap(correlation_matrix, greyscale):
     if greyscale == "y":
         cmap = sns.light_palette("black", as_cmap=True)
     else:
-        cmap = sns.diverging_palette(240, 0, as_cmap=True)
+        cmap = None
     sns.heatmap(correlation, mask=mask, cmap=cmap, square=True,
                 linewidths=0, cbar=False, xticklabels=False, yticklabels=False, ax=None)
     heatmap = fig
@@ -147,10 +152,9 @@ def Plot_Heatmap(correlation_matrix, greyscale):
     if greyscale == 'y':
         cmap = mpl.cm.binary
     else:
-        cmap = mpl.cm.RdBu
+        cmap = mpl.cm.coolwarm
     norm = mpl.colors.Normalize(vmin=min_value, vmax=max_value)
-    bounds = [min_value, 0, max_value]
-    mpl.colorbar.ColorbarBase(ax1, cmap=cmap, norm=norm, ticks=bounds, orientation='horizontal')
+    mpl.colorbar.ColorbarBase(ax1, cmap=cmap, norm=norm, orientation='horizontal')
     bar = fig
     return [heatmap, bar]
 
@@ -167,14 +171,14 @@ def Plot_Annotations(annotation_names, annotation_vectors, greyscale):
                 else:
                     colors.append('#FFFFFF')
         else:
-            color_array = ['#D64541', '#2980b9', '#663399', '#e74c3c', '#049372']
+            color_array = ['#2980b9']
             for a in annotation:
                 if a == 1:
-                    colors.append(color_array[i])
+                    colors.append(color_array[0])
                 else:
                     colors.append('#FFFFFF')
         fig = plt.figure(figsize=(12, 1))
-        ax2 = fig.add_axes([0.05, 0.475, 0.9, 0.15])
+        ax2 = fig.add_axes([0.05, 0.8, 0.9, 0.15])
         cmap = mpl.colors.ListedColormap(colors)
         cmap.set_over('0.25')
         cmap.set_under('0.75')
@@ -182,7 +186,7 @@ def Plot_Annotations(annotation_names, annotation_vectors, greyscale):
         norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
         annotation_plot = mpl.colorbar.ColorbarBase(ax2, cmap=cmap, norm=norm, spacing='proportional',
                                                     orientation='horizontal')
-        annotation_plot.set_label(annotation_names[i], fontsize=16)
+        annotation_plot.set_label(annotation_names[i], fontsize=20)
         annotation_plot.set_ticks([])
         annotation_plot = fig
         annotation_tuple.append(annotation_plot)
@@ -193,35 +197,36 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     DPI = 300
     size_prob_plot = 200
     size_stat_plot = 275
-    size_annotation_plot = 50
+    size_annotation_plot = 55
     size_width = "9in"
-    size_height = "13in"
+    size_height = "14in"
     fig = sg.SVGFigure(size_width, size_height)
     value_plots.savefig('value_plots.svg', format='svg', dpi=DPI)
     value_plots = sg.fromfile('value_plots.svg')
     plot1 = value_plots.getroot()
 
-    # Get heatmap and colorbar
-    plot4 = heatmap[0]
-    plot4.savefig('heatmap.svg', format='svg', dpi=DPI)
-    plot4 = sg.fromfile('heatmap.svg')
-    plot4 = plot4.getroot()
-    colorbar = heatmap[1]
-    colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
-    colorbar = sg.fromfile('colorbar.svg')
-    colorbar = colorbar.getroot()
+    if heatmap is not None:
+        # Get heatmap and colorbar
+        plot4 = heatmap[0]
+        plot4.savefig('heatmap.svg', format='svg', dpi=DPI)
+        plot4 = sg.fromfile('heatmap.svg')
+        plot4 = plot4.getroot()
+        colorbar = heatmap[1]
+        colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
+        colorbar = sg.fromfile('colorbar.svg')
+        colorbar = colorbar.getroot()
 
-    #transform and add heatmap figure; must be added first for correct layering
-    y_scale = size_annotation_plot * (len(annotation_plot)) + len(stats_plot)*size_stat_plot + size_stat_plot
-    if len(annotation_plot) == 1:
-        y_scale = 0
-    plot4.moveto(-10, y_scale, scale=1.425)
-    plot4.rotate(-45, 0, 0)
-    fig.append(plot4)
+        #transform and add heatmap figure; must be added first for correct layering
+        y_scale = size_annotation_plot * (len(annotation_plot)) + len(stats_plot)*size_stat_plot + size_stat_plot
+        if len(annotation_plot) == 1:
+            y_scale = 0
+        plot4.moveto(-10, y_scale, scale=1.425)
+        plot4.rotate(-45, 0, 0)
+        fig.append(plot4)
 
-    # add colorbar
-    colorbar.moveto(600, y_scale+250)
-    fig.append(colorbar)
+        # add colorbar
+        colorbar.moveto(500, y_scale+300)
+        fig.append(colorbar)
 
     #transform and add value plot
     plot1.moveto(0, 0)
@@ -274,7 +279,6 @@ def main():
     parser.add_option("-t", "--threshold", dest="threshold", default=0)
     parser.add_option("-g", "--greyscale", dest="greyscale", default='n')
     parser.add_option("-o", "--output", dest="output", default='fig_final')
-    parser.add_option("-d", "--plot_ld", dest="plot_ld", default='y')
 
     # extract options
     (options, args) = parser.parse_args()
@@ -287,7 +291,6 @@ def main():
     threshold = int(threshold)*.01
     greyscale = options.greyscale
     output = options.output
-    plot_ld = options.plot_ld
     usage = \
     """ Need the following flags specified (*)
         Usage:
@@ -299,17 +302,21 @@ def main():
         --threshold [-t] threshold for credible set [default: 0]
         --greyscale [-g] sets colorscheme to greyscale [default: n]
         --output [-o] desired name of output file
-        --plot_ld [-d] specify to plot LD matrix or not [default: y]
         """
 
     #check if required flags are presnt
-    if(locus_name == None or annotations == None or ld_name == None or zscore_names == None or annotation_names == None):
+    if(locus_name == None or annotations == None or zscore_names == None or annotation_names == None):
         sys.exit(usage)
 
     [zscores, pos_prob, location, ld, annotations] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names)
     stats_plot = Plot_Statistic_Value(location, zscores, zscore_names, greyscale)
     value_plots = Plot_Position_Value(location, pos_prob, threshold, greyscale)
-    heatmap = Plot_Heatmap(ld, greyscale)
+
+    if ld is not None:
+        heatmap = Plot_Heatmap(ld, greyscale)
+    else:
+        heatmap = None
+
     annotation_plot = Plot_Annotations(annotation_names, annotations, greyscale)
 
     Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output)
