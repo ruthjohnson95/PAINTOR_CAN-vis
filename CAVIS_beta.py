@@ -10,6 +10,8 @@ from optparse import OptionParser
 import svgutils.transform as sg
 import sys
 import cairosvg
+import warnings
+import os
 
 def vararg_callback(option, opt_str, value, parser):
     """Function that allows for a variable number of arguments at the command line"""
@@ -31,29 +33,67 @@ def vararg_callback(option, opt_str, value, parser):
     del parser.rargs[:len(value)]
     setattr(parser.values, option.dest, value)
 
-def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_annotations):
+def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_annotations, interval):
     """Function that reads in all your data files"""
     zscore_data = pd.read_csv(locus_fname, delim_whitespace=True)
     zscores = zscore_data[zscore_names]
     location = zscore_data['pos']
     pos_prob = zscore_data['Posterior_Prob']
+
+    if interval is not None: # user input an interval
+        a = int(interval[0])
+        b = int(interval[1])
+    elif interval is None:  # user did not input an interval; set interval to whole interval
+        a = np.amin(location)
+        b = np.amax(location)
+    if a < location[0] or a > location[len(location)-1]:
+        # user input out of range interval; set interval to whole interval
+        warnings.warn('Specified interval is out of range; left bound set to first valid location')
+        a = np.amin(location)
+    if b > location[len(location) - 1] or b < location[0]:
+        warnings.warn('Specified interval is out of range; right bound set to last valid location')
+        b = np.amax(location)
+
+    indices = np.where((location >= a) & (location <= b))
+    N = indices[0][0]
+    M = indices[-1][-1]
     if ld_fname is not None:
         ld = pd.read_csv(ld_fname, header=None, delim_whitespace=True)
-        warning = \
-        """ Warning: LD matrix cannot have more than 400 entries per row
-        """
+        ld_matrix = ld.as_matrix()
+        # calculate index for location form location
+        ld_matrix = ld_matrix[N:M, N:M]
+        ld = pd.DataFrame(data=ld_matrix)
         n = ld.shape
         if n[0] > 400:
-            sys.exit(warning)
+            warnings.warn('LD matrix is very large and might slow down program')
     else:
         ld = None
-    annotation_data = pd.read_csv(annotation_fname, delim_whitespace=True)
-    annotations = annotation_data[specific_annotations]
+    if annotation_fname is not None:
+        annotation_data = pd.read_csv(annotation_fname, delim_whitespace=True)
+        if specific_annotations is not None:
+            annotations = annotation_data[specific_annotations]
+        else: # only data; no names
+            header = pd.read_csv(annotation_fname, delim_whitespace=True, header=None)
+            header = header.values.tolist()
+            specific_annotations = header[0]
+            annotations = annotation_data[specific_annotations]
+        annotations = annotations.as_matrix()
+    else: # no data or names
+        annotations = None
     zscores = zscores.as_matrix()
+    zscores = zscores[N:M, :]
     pos_prob = pos_prob.as_matrix()
+    pos_prob = pos_prob[N:M]
     location = location.as_matrix()
-    annotations = annotations.as_matrix()
-    return [zscores,pos_prob,location, ld, annotations]
+    location = location[N:M]
+
+    return [zscores,pos_prob,location, ld, annotations, specific_annotations]
+
+def Zscore_to_Pvalue(zscore):
+    """Function that converts zscores to pvalues"""
+    abs_zscore = np.absolute(zscore)
+    pvalue = -1 * (norm.logsf(abs_zscore) / math.log(10))
+    return pvalue
 
 def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
     """function that plots pvalues from given zscores"""
@@ -63,7 +103,7 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
         sub = fig.add_subplot(1,1,1, axisbg='white')
         plt.xlim(np.amin(position), np.amax(position) + 1)
         plt.tick_params(axis='both', which='major', labelsize=16)
-        plt.ylabel('-log10(pvalue)', fontsize=16)
+        plt.ylabel('-log10(pvalue)', fontsize=18)
         z = zscore[:, i]
         pvalue = Zscore_to_Pvalue(z)
         if greyscale == "y":
@@ -72,6 +112,10 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
             color_array = ['#D64541']
             sub.scatter(position, pvalue, color=color_array[0])
         plt.gca().set_ylim(bottom=0)
+        #add threshold line at 5*10-8
+        x = [np.amin(position), np.amax(position) + 1]
+        y = [-1*math.log(5*10**-8)/(math.log(10)), -1*math.log(5*10**-8)/(math.log(10))]
+        plt.plot(x,y,'gray', linestyle='dashed')
         label = mpatches.Patch(color='#FFFFFF', label=zscore_names[i])
         legend = plt.legend(handles=[label])
         for label in legend.get_texts():
@@ -92,9 +136,9 @@ def Plot_Position_Value(position, pos_prob, threshold, greyscale):
     fig = plt.figure(figsize=(12, 3.25))
     sub1 = fig.add_subplot(1,1,1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
-    plt.ylabel('Posterior probabilities', fontsize=16)
-    plt.tick_params(axis='both', which='major', labelsize=16)
-    plt.xlabel('Location', fontsize=16)
+    plt.ylabel('Posterior probabilities', fontsize=18)
+    plt.tick_params(axis='both', which='major', labelsize=18)
+    plt.xlabel('Location', fontsize=18)
     sub1.scatter(position, pos_prob, color=plot_color)
     if threshold != 0:
         sub1.scatter(credible_loc, credible_prob, color=set_color, label='Credible Set', marker='*')
@@ -102,7 +146,7 @@ def Plot_Position_Value(position, pos_prob, threshold, greyscale):
         credible_set = mpatches.Patch(color=set_color, label=title)
         legend = plt.legend(handles=[credible_set])
         for label in legend.get_texts():
-            label.set_fontsize(16)
+            label.set_fontsize(18)
     plt.gca().set_ylim(bottom=0)
     value_plots = fig
     return value_plots
@@ -198,13 +242,28 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     size_prob_plot = 200
     size_stat_plot = 275
     size_annotation_plot = 55
+    num_statplots = len(stats_plot)
+    statplot_length = 3*num_statplots
+    if annotation_plot is not None:
+        num_annotations = len(annotation_plot)
+    else:
+        num_annotations = 0
+    annotation_length = .6*num_annotations
+    if heatmap is not None:
+        heatmap_length = 3.75
+    else:
+        heatmap_length = 0
+    height = 3 + annotation_length + heatmap_length + statplot_length
     size_width = "9in"
-    size_height = "14in"
+    size_height = str(height) + '14in'
     fig = sg.SVGFigure(size_width, size_height)
     value_plots.savefig('value_plots.svg', format='svg', dpi=DPI)
     value_plots = sg.fromfile('value_plots.svg')
     plot1 = value_plots.getroot()
-
+    if annotation_plot is not None:
+        len_ann_plot = (len(annotation_plot))
+    else:
+        len_ann_plot = 0
     if heatmap is not None:
         # Get heatmap and colorbar
         plot4 = heatmap[0]
@@ -215,11 +274,9 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
         colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
         colorbar = sg.fromfile('colorbar.svg')
         colorbar = colorbar.getroot()
-
         #transform and add heatmap figure; must be added first for correct layering
-        y_scale = size_annotation_plot * (len(annotation_plot)) + len(stats_plot)*size_stat_plot + size_stat_plot
-        if len(annotation_plot) == 1:
-            y_scale = 0
+
+        y_scale = size_annotation_plot * len_ann_plot + len(stats_plot)*size_stat_plot + size_stat_plot
         plot4.moveto(-10, y_scale, scale=1.425)
         plot4.rotate(-45, 0, 0)
         fig.append(plot4)
@@ -232,20 +289,21 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     plot1.moveto(0, 0)
     fig.append(plot1)
 
-    # transform and add annotations plots
-    index = 0
-    for plot in annotation_plot:
-        plot.savefig('annotation_plot.svg', format='svg', dpi=DPI)
-        plot = sg.fromfile('annotation_plot.svg')
-        plot3 = plot.getroot()
-        y_move = size_prob_plot + size_annotation_plot * (index + 1)
-        plot3.moveto(60, y_move, scale=.9)
-        index += 1
-        fig.append(plot3)
+    if annotation_plot is not None:
+        # transform and add annotations plots
+        index = 0
+        for plot in annotation_plot:
+            plot.savefig('annotation_plot.svg', format='svg', dpi=DPI)
+            plot = sg.fromfile('annotation_plot.svg')
+            plot3 = plot.getroot()
+            y_move = size_prob_plot + size_annotation_plot * (index + 1)
+            plot3.moveto(60, y_move, scale=.9)
+            index += 1
+            fig.append(plot3)
 
     #transform and add zscore plots
     index = 0
-    len_annotation_plot = size_prob_plot + size_annotation_plot * (len(annotation_plot) + 1)
+    len_annotation_plot = size_prob_plot + size_annotation_plot * (len_ann_plot + 1)
     for plot in stats_plot:
         plot.savefig('stats_plot.svg', format='svg', dpi=DPI)
         plot = sg.fromfile('stats_plot.svg')
@@ -261,11 +319,6 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     pdffile = output + ".pdf"
     cairosvg.svg2pdf(url=svgfile, write_to=pdffile)
 
-def Zscore_to_Pvalue(zscore):
-    """Function that converts zscores to pvalues"""
-    abs_zscore = np.absolute(zscore)
-    pvalue = -1 * (norm.logsf(abs_zscore) / math.log(10))
-    return pvalue
 
 def main():
 
@@ -279,6 +332,7 @@ def main():
     parser.add_option("-t", "--threshold", dest="threshold", default=0)
     parser.add_option("-g", "--greyscale", dest="greyscale", default='n')
     parser.add_option("-o", "--output", dest="output", default='fig_final')
+    parser.add_option("-i", "--interval", dest="interval", nargs=2)
 
     # extract options
     (options, args) = parser.parse_args()
@@ -288,13 +342,18 @@ def main():
     annotations = options.annotations
     annotation_names = options.specific_annotations
     threshold = options.threshold
-    threshold = int(threshold)*.01
+    if threshold < 0 or threshold > 100:
+        warnings.warn('Specified threshold is not valid; threshold is set to 0')
+        threshold = 0
+    else:
+        threshold = int(threshold)*.01
     greyscale = options.greyscale
     output = options.output
+    interval = options.interval
     usage = \
     """ Need the following flags specified (*)
         Usage:
-        --locus [-l] specify input file with fine-mapping locus (assumed to be ordered by position) *
+        --locus [-l] specify input file with fine-mapping locus (assumed to be ordered by position)
         --zscores [-z] specific zscores to be plotted
         --annotations [-a]  specify annotation file name
         --specific_annotations [-s] annotations to be plotted
@@ -302,13 +361,14 @@ def main():
         --threshold [-t] threshold for credible set [default: 0]
         --greyscale [-g] sets colorscheme to greyscale [default: n]
         --output [-o] desired name of output file
+        --interval [-i] designated interval [default: all locations]
         """
 
     #check if required flags are presnt
-    if(locus_name == None or annotations == None or zscore_names == None or annotation_names == None):
+    if(locus_name == None or zscore_names == None):
         sys.exit(usage)
 
-    [zscores, pos_prob, location, ld, annotations] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names)
+    [zscores, pos_prob, location, ld, annotations, annotation_names] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names, interval)
     stats_plot = Plot_Statistic_Value(location, zscores, zscore_names, greyscale)
     value_plots = Plot_Position_Value(location, pos_prob, threshold, greyscale)
 
@@ -317,11 +377,22 @@ def main():
     else:
         heatmap = None
 
-    annotation_plot = Plot_Annotations(annotation_names, annotations, greyscale)
+    if annotations is not None:
+        annotation_plot = Plot_Annotations(annotation_names, annotations, greyscale)
+    else:
+        annotation_plot = None
 
     Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output)
 
-
+    #remove extraneous files
+    if heatmap is not None:
+        os.remove('heatmap.svg')
+        os.remove('colorbar.svg')
+    os.remove('stats_plot.svg')
+    if annotation_plot is not None:
+        os.remove('annotation_plot.svg')
+    os.remove(output + '.svg')
+    os.remove('value_plots.svg')
 
 if __name__ == "__main__":
     main()
