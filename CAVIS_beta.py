@@ -78,6 +78,7 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
             specific_annotations = header[0]
             annotations = annotation_data[specific_annotations]
         annotations = annotations.as_matrix()
+        annotations = annotations[N:M]
     else: # no data or names
         annotations = None
     zscores = zscores.as_matrix()
@@ -342,11 +343,12 @@ def main():
     annotations = options.annotations
     annotation_names = options.specific_annotations
     threshold = options.threshold
+    threshold = int(threshold)
     if threshold < 0 or threshold > 100:
         warnings.warn('Specified threshold is not valid; threshold is set to 0')
         threshold = 0
     else:
-        threshold = int(threshold)*.01
+        threshold = (threshold)*.01
     greyscale = options.greyscale
     output = options.output
     interval = options.interval

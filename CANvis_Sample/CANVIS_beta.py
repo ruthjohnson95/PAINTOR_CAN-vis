@@ -40,24 +40,27 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
     location = zscore_data['pos']
     pos_prob = zscore_data['Posterior_Prob']
 
-    if interval is not None:
+    if interval is not None: # user input an interval
         a = int(interval[0])
         b = int(interval[1])
-    elif interval is None:
+    elif interval is None:  # user did not input an interval; set interval to whole interval
         a = np.amin(location)
         b = np.amax(location)
-    elif int(interval[0]) < location[0] or int(interval[1]) > location[len(location)-1]:
-        warnings.warn('Specified interval is out of range; all locations used as default')
+    if a < location[0] or a > location[len(location)-1]:
+        # user input out of range interval; set interval to whole interval
+        warnings.warn('Specified interval is out of range; left bound set to first valid location')
         a = np.amin(location)
+    if b > location[len(location) - 1] or b < location[0]:
+        warnings.warn('Specified interval is out of range; right bound set to last valid location')
         b = np.amax(location)
 
+    indices = np.where((location >= a) & (location <= b))
+    N = indices[0][0]
+    M = indices[-1][-1]
     if ld_fname is not None:
         ld = pd.read_csv(ld_fname, header=None, delim_whitespace=True)
         ld_matrix = ld.as_matrix()
         # calculate index for location form location
-        indices = np.where((location >= a) & (location <= b))
-        N = indices[0][0]
-        M = indices[-1][-1]
         ld_matrix = ld_matrix[N:M, N:M]
         ld = pd.DataFrame(data=ld_matrix)
         n = ld.shape
@@ -65,8 +68,6 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
             warnings.warn('LD matrix is very large and might slow down program')
     else:
         ld = None
-        N = a
-        M = b
     if annotation_fname is not None:
         annotation_data = pd.read_csv(annotation_fname, delim_whitespace=True)
         if specific_annotations is not None:
@@ -77,6 +78,7 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
             specific_annotations = header[0]
             annotations = annotation_data[specific_annotations]
         annotations = annotations.as_matrix()
+        annotations = annotations[N:M]
     else: # no data or names
         annotations = None
     zscores = zscores.as_matrix()
@@ -241,13 +243,28 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     size_prob_plot = 200
     size_stat_plot = 275
     size_annotation_plot = 55
+    num_statplots = len(stats_plot)
+    statplot_length = 3*num_statplots
+    if annotation_plot is not None:
+        num_annotations = len(annotation_plot)
+    else:
+        num_annotations = 0
+    annotation_length = .6*num_annotations
+    if heatmap is not None:
+        heatmap_length = 3.75
+    else:
+        heatmap_length = 0
+    height = 3 + annotation_length + heatmap_length + statplot_length
     size_width = "9in"
-    size_height = "14in"
+    size_height = str(height) + '14in'
     fig = sg.SVGFigure(size_width, size_height)
     value_plots.savefig('value_plots.svg', format='svg', dpi=DPI)
     value_plots = sg.fromfile('value_plots.svg')
     plot1 = value_plots.getroot()
-
+    if annotation_plot is not None:
+        len_ann_plot = (len(annotation_plot))
+    else:
+        len_ann_plot = 0
     if heatmap is not None:
         # Get heatmap and colorbar
         plot4 = heatmap[0]
@@ -258,14 +275,9 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
         colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
         colorbar = sg.fromfile('colorbar.svg')
         colorbar = colorbar.getroot()
-        if annotation_plot is not None:
-            len_ann_plot = (len(annotation_plot))
-        else:
-            len_ann_plot = 0
         #transform and add heatmap figure; must be added first for correct layering
+
         y_scale = size_annotation_plot * len_ann_plot + len(stats_plot)*size_stat_plot + size_stat_plot
-        if len_ann_plot == 1:
-            y_scale = 0
         plot4.moveto(-10, y_scale, scale=1.425)
         plot4.rotate(-45, 0, 0)
         fig.append(plot4)
@@ -292,7 +304,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
 
     #transform and add zscore plots
     index = 0
-    len_annotation_plot = size_prob_plot + size_annotation_plot * (len_ann_plot+ 1)
+    len_annotation_plot = size_prob_plot + size_annotation_plot * (len_ann_plot + 1)
     for plot in stats_plot:
         plot.savefig('stats_plot.svg', format='svg', dpi=DPI)
         plot = sg.fromfile('stats_plot.svg')
@@ -306,7 +318,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     svgfile = output + ".svg"
     fig.save(svgfile)
     pdffile = output + ".pdf"
-    #cairosvg.svg2pdf(url=svgfile, write_to=pdffile)
+    cairosvg.svg2pdf(url=svgfile, write_to=pdffile)
 
 
 def main():
@@ -331,7 +343,12 @@ def main():
     annotations = options.annotations
     annotation_names = options.specific_annotations
     threshold = options.threshold
-    threshold = int(threshold)*.01
+    threshold = int(threshold)
+    if threshold < 0 or threshold > 100:
+        warnings.warn('Specified threshold is not valid; threshold is set to 0')
+        threshold = 0
+    else:
+        threshold = (threshold)*.01
     greyscale = options.greyscale
     output = options.output
     interval = options.interval
@@ -346,7 +363,7 @@ def main():
         --threshold [-t] threshold for credible set [default: 0]
         --greyscale [-g] sets colorscheme to greyscale [default: n]
         --output [-o] desired name of output file
-        --interval [-i]
+        --interval [-i] designated interval [default: all locations]
         """
 
     #check if required flags are presnt
