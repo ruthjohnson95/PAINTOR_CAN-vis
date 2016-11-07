@@ -134,7 +134,7 @@ def Plot_Position_Value(position, pos_prob, threshold, greyscale):
         plot_color = '#2980b9'
         set_color = '#D91E18'
     [credible_loc, credible_prob] = Credible_Set(position, pos_prob, threshold)
-    fig = plt.figure(figsize=(12, 3.25))
+    fig = plt.figure(figsize=(6, 3.25))
     sub1 = fig.add_subplot(1,1,1, axisbg='white')
     plt.xlim(np.amin(position), np.amax(position)+1)
     plt.ylabel('Posterior probabilities', fontsize=10)
@@ -279,12 +279,12 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
         #transform and add heatmap figure; must be added first for correct layering
 
         y_scale = size_annotation_plot * len_ann_plot + len(stats_plot)*size_stat_plot + size_stat_plot
-        plot4.moveto(375,95, scale=1.45)
+        plot4.moveto(375, 300, scale=1.45)
         plot4.rotate(-45, 0, 0)
         fig.append(plot4)
 
         # add colorbar
-        colorbar.moveto(500, y_scale+300)
+        colorbar.moveto(430, y_scale - 100)
         fig.append(colorbar)
 
     #transform and add value plot
@@ -299,7 +299,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
             plot = sg.fromfile('annotation_plot.svg')
             plot3 = plot.getroot()
             y_move = size_prob_plot + size_annotation_plot * (index + 1)
-            plot3.moveto(30, 10, scale=1.05)
+            plot3.moveto(30, 250, scale=1.05)
             index += 1
             fig.append(plot3)
 
@@ -312,7 +312,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
         plot2 = plot.getroot()
         # y_move = size_stat_plot * index + len_annotation_plot
         index += 1
-        plot2.moveto(0, 65)
+        plot2.moveto(0, 270)
         fig.append(plot2)
 
     #export final figure as a svg and pdf
