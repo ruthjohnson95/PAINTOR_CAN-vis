@@ -96,7 +96,21 @@ def Zscore_to_Pvalue(zscore):
     pvalue = -1 * (norm.logsf(abs_zscore) / math.log(10))
     return pvalue
 
-def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
+# Find the top SNP and return the vector of SNPs relative to it
+
+def Find_Top_SNP(zscore_vect, correlation_matrix):
+    correlation_matrix = correlation_matrix.as_matrix()
+    # use r^2
+    correlation_matrix = np.square(correlation_matrix)
+    zscore_vect = np.absolute(zscore_vect)
+    top_SNP = zscore_vect.argmax() # returns index
+    # get column corresponding to top SNP
+    top_vect = correlation_matrix[:][top_SNP]
+    return top_vect, top_SNP
+
+# Zscores Plot
+
+def Plot_Statistic_Value(position, zscore, zscore_names, greyscale, correlation_matrix):
     """function that plots pvalues from given zscores"""
     zscore_tuple = []
     for i in range(0, len(zscore_names)):
@@ -107,11 +121,19 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
         plt.ylabel('-log10(pvalue)', fontsize=10)
         z = zscore[:, i]
         pvalue = Zscore_to_Pvalue(z)
+        [top_vect, top_SNP]  = Find_Top_SNP(z, correlation_matrix)
+
         if greyscale == "y":
             sub.scatter(position, pvalue, color='#6B6B6B')
         else:
             color_array = ['#D64541']
-            sub.scatter(position, pvalue, color=color_array[0])
+            # sub.scatter(position, pvalue, color=color_array[0])
+            sub.scatter(position, pvalue, c=top_vect, cmap='GnBu')
+            # plot the top SNP
+            x=[top_SNP]
+            y = [pvalue[top_SNP]]
+            sub.scatter(x, y, marker='D', color='black')
+
         plt.gca().set_ylim(bottom=0)
         #add threshold line at 5*10-8
         x = [np.amin(position), np.amax(position) + 1]
@@ -123,7 +145,21 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale):
             label.set_fontsize('small')
         value_plot = fig
         zscore_tuple.append(value_plot)
-    return zscore_tuple
+
+        # add color bar
+        min_value = np.amin(top_vect)
+        max_value = np.amax(top_vect)
+        fig = plt.figure(figsize=(3, 1.0))
+        ax1 = fig.add_axes([0.05, 0.80, 0.9, 0.15])
+        if greyscale == 'y':
+            cmap = mpl.cm.binary
+        else:
+            cmap = mpl.cm.GnBu
+        norm = mpl.colors.Normalize(vmin=min_value, vmax=max_value)
+        mpl.colorbar.ColorbarBase(ax1, cmap=cmap, norm=norm, orientation='horizontal')
+        bar = fig
+
+    return [zscore_tuple, bar]
 
 def Plot_Position_Value(position, pos_prob, threshold, greyscale):
     """Function that plots z-scores, posterior probabilites, other features """
@@ -237,7 +273,7 @@ def Plot_Annotations(annotation_names, annotation_vectors, greyscale):
         annotation_tuple.append(annotation_plot)
     return annotation_tuple
 
-def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
+def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, colorbar):
     """Assemble everything together and return svg and pdf of final figure"""
     DPI = 300
     size_prob_plot = 200
@@ -271,11 +307,10 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
         plot4.savefig('heatmap.svg', format='svg', dpi=DPI)
         plot4 = sg.fromfile('heatmap.svg')
         plot4 = plot4.getroot()
-        colorbar = heatmap[1]
-        colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
-        colorbar = sg.fromfile('colorbar.svg')
-        colorbar = sg.fromfile('colorbar.svg')
-        colorbar = colorbar.getroot()
+        colorbar_h = heatmap[1]
+        colorbar_h.savefig('colorbar_h.svg', format='svg', dpi=DPI)
+        colorbar_h = sg.fromfile('colorbar_h.svg')
+        colorbar_h = colorbar_h.getroot()
         #transform and add heatmap figure; must be added first for correct layering
 
         y_scale = size_annotation_plot * len_ann_plot + len(stats_plot)*size_stat_plot + size_stat_plot
@@ -284,8 +319,8 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
         fig.append(plot4)
 
         # add colorbar
-        colorbar.moveto(430, y_scale - 100)
-        fig.append(colorbar)
+        colorbar_h.moveto(430, y_scale - 100)
+        fig.append(colorbar_h)
 
     #transform and add value plot
     plot1.moveto(0, 0)
@@ -307,13 +342,20 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output):
     index = 0
     len_annotation_plot = size_prob_plot + size_annotation_plot * (len_ann_plot + 1)
     for plot in stats_plot:
-        plot.savefig('stats_plot.svg', format='svg', dpi=DPI)
-        plot = sg.fromfile('stats_plot.svg')
-        plot2 = plot.getroot()
+        plot2 = plot
+        plot2.savefig('stats_plot.svg', format='svg', dpi=DPI)
+        plot2 = sg.fromfile('stats_plot.svg')
+        plot2 = plot2.getroot()
         # y_move = size_stat_plot * index + len_annotation_plot
         index += 1
         plot2.moveto(0, 270)
         fig.append(plot2)
+
+        colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
+        colorbar = sg.fromfile('colorbar.svg')
+        colorbar = colorbar.getroot()
+        colorbar.moveto(40, 500)
+        fig.append(colorbar)
 
     #export final figure as a svg and pdf
     svgfile = output + ".svg"
@@ -372,7 +414,7 @@ def main():
         sys.exit(usage)
 
     [zscores, pos_prob, location, ld, annotations, annotation_names] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names, interval)
-    stats_plot = Plot_Statistic_Value(location, zscores, zscore_names, greyscale)
+    [stats_plot, colorbar] = Plot_Statistic_Value(location, zscores, zscore_names, greyscale, ld)
     value_plots = Plot_Position_Value(location, pos_prob, threshold, greyscale)
 
     if ld is not None:
@@ -385,7 +427,7 @@ def main():
     else:
         annotation_plot = None
 
-    Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output)
+    Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, colorbar)
 
     #remove extraneous files
     if heatmap is not None:
