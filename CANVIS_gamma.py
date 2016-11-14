@@ -128,11 +128,13 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale, correlation_
         else:
             color_array = ['#D64541']
             # sub.scatter(position, pvalue, color=color_array[0])
-            sub.scatter(position, pvalue, c=top_vect, cmap='GnBu')
+            sub.scatter(position, pvalue, c=top_vect, cmap='GnBu', zorder=1)
             # plot the top SNP
-            x=[top_SNP]
-            y = [pvalue[top_SNP]]
-            sub.scatter(x, y, marker='D', color='black')
+            x=position[top_SNP]
+            y =pvalue[top_SNP]
+            print x
+            print y
+            sub.plot(x, y, marker='D', color='black', zorder=2)
 
         plt.gca().set_ylim(bottom=0)
         #add threshold line at 5*10-8
@@ -178,7 +180,7 @@ def Plot_Position_Value(position, pos_prob, threshold, greyscale):
     plt.xlabel('Location', fontsize=10)
     sub1.scatter(position, pos_prob, color=plot_color)
     if threshold != 0:
-        sub1.scatter(credible_loc, credible_prob, color=set_color, label='Credible Set', marker='*')
+        sub1.scatter(credible_loc, credible_prob, color=set_color, label='Credible Set')
         title = "Credible Set: " + str(threshold*100) + "%"
         credible_set = mpatches.Patch(color=set_color, label=title)
         legend = plt.legend(handles=[credible_set])
@@ -319,7 +321,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, c
         fig.append(plot4)
 
         # add colorbar
-        colorbar_h.moveto(430, y_scale - 100)
+        colorbar_h.moveto(510, y_scale - 100)
         fig.append(colorbar_h)
 
     #transform and add value plot
@@ -354,7 +356,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, c
         colorbar.savefig('colorbar.svg', format='svg', dpi=DPI)
         colorbar = sg.fromfile('colorbar.svg')
         colorbar = colorbar.getroot()
-        colorbar.moveto(40, 500)
+        colorbar.moveto(100, 500)
         fig.append(colorbar)
 
     #export final figure as a svg and pdf
