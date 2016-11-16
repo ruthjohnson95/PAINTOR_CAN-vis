@@ -63,9 +63,7 @@ def Read_Input(locus_fname, zscore_names, ld_fname, annotation_fname, specific_a
         # calculate index for location form location
         ld_matrix = ld_matrix[N:M, N:M]
         ld = pd.DataFrame(data=ld_matrix)
-        n = ld.shape
-        if n[0] > 400:
-            warnings.warn('LD matrix is very large and might slow down program')
+
     else:
         ld = None
     if annotation_fname is not None:
@@ -132,8 +130,6 @@ def Plot_Statistic_Value(position, zscore, zscore_names, greyscale, correlation_
             # plot the top SNP
             x=position[top_SNP]
             y =pvalue[top_SNP]
-            print x
-            print y
             sub.plot(x, y, marker='D', color='black', zorder=2)
 
         plt.gca().set_ylim(bottom=0)
@@ -212,8 +208,20 @@ def Credible_Set(position, pos_prob, threshold):
             break
     return credible_set_loc, credible_set_value
 
-def Plot_Heatmap(correlation_matrix, greyscale):
+def Plot_Heatmap(correlation_matrix, greyscale, large_ld):
     """Function that plots heatmap of LD matrix"""
+
+    n = correlation_matrix.shape
+    if n[0] > 350 and large_ld == 'n':
+        warnings.warn('LD matrix is too large and will not be produced. To override, add "--L y"')
+        heatmap = None
+        bar = None
+        return [heatmap, bar]
+
+
+    if n[0] > 350 and large_ld == 'y':
+        warnings.warn('LD matrix is too large but will be produced due to override flag')
+
     fig = plt.figure(figsize=(3.25, 3.25))
     sns.set(style="white")
     correlation = correlation_matrix.corr()
@@ -288,7 +296,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, c
     else:
         num_annotations = 0
     annotation_length = .6*num_annotations
-    if heatmap is not None:
+    if heatmap[0] is not None:
         heatmap_length = 3.75
     else:
         heatmap_length = 0
@@ -303,7 +311,7 @@ def Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, c
         len_ann_plot = (len(annotation_plot))
     else:
         len_ann_plot = 0
-    if heatmap is not None:
+    if heatmap[0] is not None:
         # Get heatmap and colorbar
         plot4 = heatmap[0]
         plot4.savefig('heatmap.svg', format='svg', dpi=DPI)
@@ -379,6 +387,7 @@ def main():
     parser.add_option("-g", "--greyscale", dest="greyscale", default='n')
     parser.add_option("-o", "--output", dest="output", default='fig_final')
     parser.add_option("-i", "--interval", dest="interval", nargs=2)
+    parser.add_option("-L", "--large_ld", dest="large_ld", default='n')
 
     # extract options
     (options, args) = parser.parse_args()
@@ -397,6 +406,8 @@ def main():
     greyscale = options.greyscale
     output = options.output
     interval = options.interval
+    large_ld = options.large_ld
+
     usage = \
     """ Need the following flags specified (*)
         Usage:
@@ -409,18 +420,20 @@ def main():
         --greyscale [-g] sets colorscheme to greyscale [default: n]
         --output [-o] desired name of output file
         --interval [-i] designated interval [default: all locations]
+        --large_ld [-L] overrides to produce large LD despite large size
         """
 
     #check if required flags are presnt
     if(locus_name == None or zscore_names == None):
         sys.exit(usage)
 
-    [zscores, pos_prob, location, ld, annotations, annotation_names] = Read_Input(locus_name, zscore_names, ld_name, annotations, annotation_names, interval)
+    [zscores, pos_prob, location, ld, annotations, annotation_names] = Read_Input(locus_name, zscore_names,
+                                                                                  ld_name, annotations, annotation_names, interval)
     [stats_plot, colorbar] = Plot_Statistic_Value(location, zscores, zscore_names, greyscale, ld)
     value_plots = Plot_Position_Value(location, pos_prob, threshold, greyscale)
 
     if ld is not None:
-        heatmap = Plot_Heatmap(ld, greyscale)
+        heatmap = Plot_Heatmap(ld, greyscale, large_ld)
     else:
         heatmap = None
 
@@ -432,7 +445,7 @@ def main():
     Assemble_Figure(stats_plot, value_plots, heatmap, annotation_plot, output, colorbar)
 
     #remove extraneous files
-    if heatmap is not None:
+    if heatmap[0] and heatmap[1] is not None:
         os.remove('heatmap.svg')
         os.remove('colorbar.svg')
     os.remove('stats_plot.svg')
