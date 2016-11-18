@@ -142,7 +142,7 @@ def Plot_Position_Value(position, pos_prob, threshold, greyscale):
     plt.xlabel('Location', fontsize=18)
     sub1.scatter(position, pos_prob, color=plot_color)
     if threshold != 0:
-        sub1.scatter(credible_loc, credible_prob, color=set_color, label='Credible Set', marker='*')
+        sub1.scatter(credible_loc, credible_prob, color=set_color, label='Credible Set')
         title = "Credible Set: " + str(threshold*100) + "%"
         credible_set = mpatches.Patch(color=set_color, label=title)
         legend = plt.legend(handles=[credible_set])
